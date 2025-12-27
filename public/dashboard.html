@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniRead | Dashboard</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Libre Baskerville', 'serif'] },
+                    colors: {
+                        cream: { 50: '#fdfbf7', 100: '#f5f2eb', 200: '#e6e2d6', 900: '#1c1917' },
+                        ink: { 900: '#0F0F10', 800: '#18181B', 700: '#27272A' },
+                        vermilion: '#ea580c'
+                    },
+                    boxShadow: { 'paper': '0 4px 20px -2px rgba(0, 0, 0, 0.1)' }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        #fire-fill { transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .bookmark-banner { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease; transform-origin: top center; }
+        .bookmark-banner.active { transform: translateY(0); opacity: 1; }
+        .bookmark-banner.inactive { transform: translateY(-120%); opacity: 0; }
+    </style>
+</head>
+<body class="bg-cream-50 dark:bg-ink-900 text-ink-900 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-vermilion selection:text-white transition-colors duration-300">
+
+    <div id="app-sidebar" class="h-full"></div>
+
+    <main class="flex-1 flex flex-col relative overflow-hidden bg-cream-50 dark:bg-ink-900">
+        
+        <div id="app-header"></div>
+
+        <div id="view-library" class="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8 scroll-smooth no-scrollbar">
+            
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white dark:bg-ink-800 rounded-2xl p-6 lg:p-8 flex items-center gap-6 shadow-paper border border-cream-200 dark:border-ink-700 relative overflow-hidden group">
+                    <div class="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-cream-100 dark:from-ink-700 to-transparent opacity-50 pointer-events-none"></div>
+                    
+                    <div class="hidden sm:block shrink-0 relative z-10 transition-transform duration-500 group-hover:-translate-y-2">
+                        <img id="hero-cover" src="" class="w-32 h-48 object-cover rounded shadow-lg shadow-black/20 dark:shadow-black/50">
+                    </div>
+                    
+                    <div class="relative z-10 flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="w-2 h-2 rounded-full bg-vermilion"></span>
+                            <span class="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Last Read</span>
+                        </div>
+                        <h1 id="hero-title" class="text-3xl font-serif font-bold text-ink-900 dark:text-white mb-1">Loading...</h1>
+                        <p id="hero-author" class="text-gray-500 dark:text-gray-400 text-sm mb-6">Loading...</p>
+                        
+                        <div class="flex items-center gap-4 mb-6">
+                            <div class="flex-1 h-1.5 bg-cream-200 dark:bg-ink-700 rounded-full overflow-hidden">
+                                <div id="hero-progress-bar" class="h-full bg-vermilion w-[0%] rounded-full transition-all duration-1000"></div>
+                            </div>
+                            <span id="hero-progress-text" class="text-sm font-mono text-gray-600 dark:text-gray-300">0%</span>
+                        </div>
+                        
+                        <div class="flex gap-3">
+                            <button id="hero-continue-btn" class="px-6 py-2.5 bg-ink-900 dark:bg-white text-white dark:text-black font-bold rounded-lg hover:shadow-lg hover:-translate-y-0.5 transition-all">Continue Reading</button>
+                            
+                            <button id="hero-bookmark-btn" class="hero-btn px-4 py-2.5 rounded-lg transition-colors border-cream-300 dark:border-ink-600 cursor-pointer hover:bg-cream-100 dark:hover:bg-ink-700">
+                                <i class="ri-bookmark-line text-xl"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-ink-800 rounded-2xl p-6 border border-cream-200 dark:border-ink-700 shadow-paper flex flex-col justify-between relative overflow-hidden">
+                    <div class="flex justify-between items-start z-10">
+                        <div>
+                            <h3 class="font-serif font-bold text-lg text-ink-900 dark:text-white">Daily Goal</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Keep your streak alive.</p>
+                        </div>
+                        <div id="fire-glow-container" class="cursor-pointer relative w-8 h-8 group" onclick="StreakManager.openGoalModal()" title="Set Daily Goal">
+                            <i class="ri-fire-line text-gray-300 dark:text-gray-600 text-3xl absolute bottom-0 left-0 leading-none transition-colors group-hover:text-vermilion z-20"></i>
+                            <div class="absolute bottom-0 left-0 w-full overflow-hidden transition-all duration-500 z-10" id="fire-fill" style="height: 0%">
+                                <i class="ri-fire-fill text-vermilion text-3xl absolute bottom-0 left-0 leading-none"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-2 mt-4 z-10" id="daily-read-text">
+                        <span class="text-4xl font-bold text-vermilion">0</span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">/ 30 mins</span>
+                    </div>
+                    <div class="mt-4 z-10">
+                         <div id="weekly-bars" class="flex justify-between gap-1 h-12 items-end mb-2"></div>
+                        <div id="weekly-labels" class="flex justify-between text-xs font-bold text-gray-400 dark:text-gray-500 px-0.5 font-mono"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <div class="flex justify-between items-end mb-6">
+                    <h2 class="text-xl font-serif font-bold text-ink-900 dark:text-white">For You</h2>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6" id="book-grid"></div>
+            </section>
+        </div>
+    </main>
+
+    <div id="goal-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-ink-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-cream-200 dark:border-ink-700 text-center">
+            <i class="ri-fire-fill text-4xl text-vermilion mb-3"></i>
+            <h3 class="font-serif font-bold text-xl text-ink-900 dark:text-white mb-2">Set Daily Goal</h3>
+            <p class="text-sm text-gray-500 mb-6">How long do you want to read today?</p>
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="StreakManager.setGoal(15)" class="p-3 rounded-lg border border-cream-200 dark:border-ink-600 hover:border-vermilion hover:text-vermilion transition-all font-bold text-sm">15m</button>
+                <button onclick="StreakManager.setGoal(30)" class="p-3 rounded-lg border border-cream-200 dark:border-ink-600 hover:border-vermilion hover:text-vermilion transition-all font-bold text-sm">30m</button>
+                <button onclick="StreakManager.setGoal(60)" class="p-3 rounded-lg border border-cream-200 dark:border-ink-600 hover:border-vermilion hover:text-vermilion transition-all font-bold text-sm">60m</button>
+            </div>
+            <button onclick="StreakManager.closeGoalModal()" class="text-sm text-gray-400 hover:text-ink-900 dark:hover:text-white underline">Cancel</button>
+        </div>
+    </div>
+
+    <script src="layout.js"></script>
+    <script src="shared.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="streak.js"></script> 
+    <script src="search.js"></script> 
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme(); 
+            LayoutManager.init('dashboard'); // SHOW ALL LINKS
+        });
+    </script>
+</body>
+</html>

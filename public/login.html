@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Omniread | Identity Verification</title>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+              serif: ["Libre Baskerville", "serif"],
+              display: ["Libre Baskerville", "serif"],
+            },
+            colors: {
+              cream: {
+                50: "#fdfbf7",
+                100: "#f5f2eb",
+                200: "#e6e2d6",
+                900: "#1c1917",
+              },
+              ink: {
+                900: "#0F0F10",
+                800: "#18181B",
+                700: "#27272A",
+                600: "#52525b",
+              },
+              vermilion: "#ea580c",
+              accent: { light: "#fbbf24", DEFAULT: "#d97706", dark: "#b45309" },
+            },
+            boxShadow: {
+              paper: "0 4px 20px -2px rgba(180, 160, 140, 0.15)",
+              ink: "0 4px 20px -2px rgba(0, 0, 0, 0.3)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body,
+      div,
+      input,
+      button,
+      span,
+      i {
+        transition: all 0.3s ease;
+      }
+
+      .watcher-logo {
+        animation: manifest 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      @keyframes manifest {
+        0% {
+          transform: scale(0.8) translateY(10px);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(1) translateY(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20% {
+          transform: translateX(-5px);
+        }
+        40% {
+          transform: translateX(5px);
+        }
+        60% {
+          transform: translateX(-5px);
+        }
+        80% {
+          transform: translateX(5px);
+        }
+      }
+
+      .input-error {
+        animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        border-color: #ef4444 !important;
+        background-color: rgba(239, 68, 68, 0.05) !important;
+      }
+
+      .icon-error {
+        color: #ef4444 !important;
+      }
+
+      .text-drama {
+        color: #ef4444;
+        font-family: "Libre Baskerville", serif;
+        font-style: italic;
+        font-weight: 700;
+      }
+      .text-appraisal {
+        color: #d97706;
+        font-family: "Libre Baskerville", serif;
+        font-weight: 600;
+      }
+      .text-default {
+        color: #6b7280;
+      }
+      .dark .text-default {
+        color: #9ca3af;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-cream-50 dark:bg-ink-900 text-cream-900 dark:text-gray-200 font-sans h-screen w-full flex overflow-hidden selection:bg-accent selection:text-white"
+  >
+    <div class="w-full h-full grid grid-cols-1 lg:grid-cols-2">
+      <div
+        class="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden bg-cream-100 dark:bg-ink-800 border-r border-cream-200 dark:border-ink-700"
+      >
+        <div
+          class="absolute inset-0 opacity-10 dark:opacity-5 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]"
+        ></div>
+        <div
+          class="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"
+        ></div>
+
+        <div class="relative z-10 flex items-center gap-3 watcher-logo">
+          <svg
+            class="w-10 h-10 text-vermilion shrink-0"
+            viewBox="0 0 40 40"
+            fill="none"
+          >
+            <path
+              d="M20 8C14 8 8 12 8 20C8 28 14 32 20 32"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M20 8C26 8 32 12 32 20C32 28 26 32 20 32"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              opacity="0.7"
+            />
+            <path
+              d="M20 8V32"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span
+            class="text-2xl font-serif font-bold tracking-tight text-cream-900 dark:text-white"
+            >OmniRead</span
+          >
+        </div>
+
+        <div class="relative z-10 max-w-md my-auto">
+          <h1
+            class="text-5xl font-serif font-bold mb-8 leading-tight text-cream-900 dark:text-white"
+          >
+            The Archive <br />
+            <span class="text-vermilion italic">Awaits You.</span>
+          </h1>
+
+          <div class="pl-6 border-l-2 border-vermilion/30">
+            <p
+              id="omni-voice"
+              class="text-default text-lg leading-relaxed min-h-[80px] font-medium"
+            >
+              Join the Omniread network. Access millions of books, track your
+              progress, and immerse yourself in a reading experience like no
+              other.
+            </p>
+          </div>
+        </div>
+
+        <div class="relative z-10">
+          <p class="font-serif italic text-sm text-gray-400">
+            "A room without books is like a body without a soul."
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="flex flex-col items-center justify-center h-full w-full p-6 relative bg-white dark:bg-ink-900"
+      >
+        <div class="lg:hidden absolute top-8 left-8 flex items-center gap-2">
+          <svg
+            class="w-8 h-8 text-vermilion shrink-0"
+            viewBox="0 0 40 40"
+            fill="none"
+          >
+            <path
+              d="M20 8C14 8 8 12 8 20C8 28 14 32 20 32"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M20 8C26 8 32 12 32 20C32 28 26 32 20 32"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              opacity="0.7"
+            />
+            <path
+              d="M20 8V32"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span
+            class="text-xl font-serif font-bold text-cream-900 dark:text-white"
+            >OmniRead</span
+          >
+        </div>
+
+        <div class="w-full max-w-md p-4" id="card-container">
+          <div class="mb-10">
+            <h2
+              id="form-title"
+              class="text-3xl font-serif font-bold mb-3 text-cream-900 dark:text-white"
+            >
+              Welcome Back
+            </h2>
+            <p
+              id="form-subtitle"
+              class="text-gray-500 dark:text-gray-400 text-sm"
+            >
+              Enter your credentials to access your library.
+            </p>
+          </div>
+
+          <form id="auth-form" class="space-y-6" novalidate>
+            <div id="name-field" class="hidden input-group">
+              <label
+                class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"
+                >Full Name</label
+              >
+              <div class="relative group">
+                <div
+                  class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                >
+                  <i
+                    class="ri-user-line text-gray-400 group-focus-within:text-vermilion transition-colors input-icon"
+                  ></i>
+                </div>
+                <input
+                  type="text"
+                  id="input-name"
+                  placeholder="John Doe"
+                  class="w-full bg-cream-50 dark:bg-ink-800 border border-cream-200 dark:border-ink-700 rounded-lg py-3.5 pl-11 pr-4 text-sm text-cream-900 dark:text-white focus:outline-none focus:border-vermilion focus:ring-1 focus:ring-vermilion transition-all placeholder-gray-400"
+                />
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label
+                class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"
+                >Email Address</label
+              >
+              <div class="relative group">
+                <div
+                  class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                >
+                  <i
+                    class="ri-mail-line text-gray-400 group-focus-within:text-vermilion transition-colors input-icon"
+                  ></i>
+                </div>
+                <input
+                  type="email"
+                  id="input-email"
+                  placeholder="alex@omniread.com"
+                  class="w-full bg-cream-50 dark:bg-ink-800 border border-cream-200 dark:border-ink-700 rounded-lg py-3.5 pl-11 pr-4 text-sm text-cream-900 dark:text-white focus:outline-none focus:border-vermilion focus:ring-1 focus:ring-vermilion transition-all placeholder-gray-400"
+                />
+              </div>
+            </div>
+
+            <div class="input-group">
+              <div class="flex justify-between items-center mb-2">
+                <label
+                  class="block text-xs font-bold text-gray-400 uppercase tracking-widest"
+                  >Password</label
+                >
+                <a
+                  href="forgot-password.html"
+                  id="forgot-password-link"
+                  class="text-xs text-vermilion hover:text-accent font-medium transition-colors"
+                  >Forgot password?</a
+                >
+              </div>
+              <div class="relative group">
+                <div
+                  class="absolute inset-y-0 left-0 pl-4 flex items-center cursor-pointer z-10"
+                  onclick="togglePasswordVisibility('input-password', 'icon-password')"
+                >
+                  <i
+                    id="icon-password"
+                    class="ri-lock-line text-gray-400 hover:text-vermilion transition-colors text-lg input-icon"
+                  ></i>
+                </div>
+                <input
+                  type="password"
+                  id="input-password"
+                  placeholder="••••••••"
+                  class="w-full bg-cream-50 dark:bg-ink-800 border border-cream-200 dark:border-ink-700 rounded-lg py-3.5 pl-11 pr-4 text-sm text-cream-900 dark:text-white focus:outline-none focus:border-vermilion focus:ring-1 focus:ring-vermilion transition-all placeholder-gray-400"
+                />
+              </div>
+              <p class="text-[10px] text-gray-400 mt-1.5 ml-1" id="pass-hint">
+                Min 8 chars, 1 uppercase, 1 lowercase, 1 number.
+              </p>
+            </div>
+
+            <div id="confirm-password-field" class="hidden input-group">
+              <label
+                class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"
+                >Confirm Password</label
+              >
+              <div class="relative group">
+                <div
+                  class="absolute inset-y-0 left-0 pl-4 flex items-center cursor-pointer z-10"
+                  onclick="togglePasswordVisibility('input-confirm-password', 'icon-confirm-password')"
+                >
+                  <i
+                    id="icon-confirm-password"
+                    class="ri-lock-line text-gray-400 hover:text-vermilion transition-colors text-lg input-icon"
+                  ></i>
+                </div>
+                <input
+                  type="password"
+                  id="input-confirm-password"
+                  placeholder="••••••••"
+                  class="w-full bg-cream-50 dark:bg-ink-800 border border-cream-200 dark:border-ink-700 rounded-lg py-3.5 pl-11 pr-4 text-sm text-cream-900 dark:text-white focus:outline-none focus:border-vermilion focus:ring-1 focus:ring-vermilion transition-all placeholder-gray-400"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              id="submit-btn"
+              class="w-full bg-cream-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all mt-4 border border-transparent hover:border-vermilion dark:hover:border-transparent"
+            >
+              Sign In to Omniread
+            </button>
+          </form>
+
+          <div class="relative my-8">
+            <div class="absolute inset-0 flex items-center">
+              <div
+                class="w-full border-t border-cream-200 dark:border-ink-700"
+              ></div>
+            </div>
+            <div
+              class="relative flex justify-center text-xs uppercase tracking-widest font-bold"
+            >
+              <span class="px-3 bg-white dark:bg-ink-900 text-gray-400"
+                >Or continue with</span
+              >
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="relative group">
+              <div
+                class="w-full flex items-center justify-center gap-2 py-3 border border-cream-200 dark:border-ink-700 rounded-lg group-hover:bg-cream-50 dark:group-hover:bg-ink-800 transition-colors text-sm font-medium text-cream-900 dark:text-gray-300 cursor-pointer"
+              >
+                <i class="ri-google-fill text-lg"></i> Google
+              </div>
+
+              <div
+                id="google-btn-wrapper"
+                class="absolute inset-0 z-20 opacity-0 overflow-hidden cursor-pointer"
+              ></div>
+            </div>
+
+            <button
+              class="flex items-center justify-center gap-2 py-3 border border-cream-200 dark:border-ink-700 rounded-lg hover:bg-cream-50 dark:hover:bg-ink-800 transition-colors text-sm font-medium text-cream-900 dark:text-gray-300"
+            >
+              <i class="ri-github-fill text-lg"></i> GitHub
+            </button>
+          </div>
+
+          <div class="text-center mt-10 text-sm text-gray-500">
+            <span id="toggle-text">Don't have an account?</span>
+            <button
+              onclick="toggleMode()"
+              id="toggle-btn"
+              class="text-vermilion font-bold hover:text-accent ml-1 transition-colors underline decoration-2 decoration-transparent hover:decoration-vermilion"
+            >
+              Create one
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="login.js"></script>
+  </body>
+</html>

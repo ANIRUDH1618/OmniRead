@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniRead | Reader</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Libre Baskerville', 'serif'] },
+                    colors: {
+                        cream: { 50: '#fdfbf7', 100: '#f5f2eb', 200: '#e6e2d6', 900: '#1c1917' },
+                        ink: { 900: '#0F0F10', 800: '#18181B', 700: '#27272A' },
+                        vermilion: '#ea580c'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .reader-scroll::-webkit-scrollbar { width: 8px; }
+        .reader-scroll::-webkit-scrollbar-track { background: transparent; }
+        .reader-scroll::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 4px; }
+        .dark .reader-scroll::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); }
+
+        /* 3D BOOK EFFECT */
+        .book-wrapper { perspective: 1500px; }
+        .reader-spine { 
+            box-shadow: 0 20px 50px -12px rgba(0,0,0,0.25); 
+            transform-style: preserve-3d;
+            background-color: #fcfaf5;
+        }
+
+        /* Continuous Page Styling */
+        .pdf-page {
+            position: relative;
+            margin-bottom: 24px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            min-height: 600px; /* Placeholder height before load */
+        }
+        
+        #reader-scroll-container { scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="bg-cream-50 dark:bg-ink-900 text-cream-900 dark:text-gray-200 font-sans h-screen w-screen overflow-hidden">
+
+    <div id="view-book-home" class="w-full h-full flex flex-col overflow-y-auto reader-scroll">
+        
+        <header class="h-16 flex items-center justify-between px-8 border-b border-cream-200 dark:border-ink-700 bg-cream-50/90 dark:bg-ink-900/90 backdrop-blur-md sticky top-0 z-40 shrink-0">
+            <button onclick="window.location.href='/dashboard'" class="flex items-center gap-2 text-gray-500 hover:text-vermilion transition-colors">
+                <i class="ri-arrow-left-line text-xl"></i> <span class="text-sm font-medium">Archives</span>
+            </button>
+            <h2 class="font-serif text-lg font-bold text-ink-900 dark:text-white">Library</h2>
+        </header>
+
+        <div class="p-6 lg:p-12 max-w-6xl mx-auto w-full">
+            
+            <div class="flex flex-col md:flex-row gap-8 items-start mb-16">
+                <img id="home-book-cover" src="" class="w-40 md:w-56 h-auto object-cover rounded-lg shadow-2xl border-4 border-white dark:border-ink-800 shrink-0">
+                <div class="pt-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="px-2 py-0.5 rounded-full bg-vermilion/10 text-vermilion text-[10px] font-bold uppercase tracking-widest border border-vermilion/20">Currently Reading</span>
+                    </div>
+                    <h1 id="home-book-title" class="text-4xl md:text-5xl font-serif font-bold text-ink-900 dark:text-white mb-2 leading-tight">Loading...</h1>
+                    <p id="home-book-author" class="text-lg text-gray-500 font-medium mb-8">Loading...</p>
+                    
+                    <div class="flex items-center gap-4">
+                        <button onclick="resumeReading()" class="px-8 py-3 bg-ink-900 dark:bg-white text-white dark:text-black font-bold rounded-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-3">
+                            <i class="ri-book-open-line"></i> Resume Reading
+                        </button>
+                        
+                        <button id="home-bookmark-btn" onclick="toggleHomeBookmark()" class="w-12 h-12 flex items-center justify-center rounded-lg border border-gray-300 dark:border-ink-600 text-gray-400 hover:text-vermilion hover:border-vermilion transition-all bg-white dark:bg-ink-800 shadow-sm">
+                            <i id="home-bookmark-icon" class="ri-bookmark-line text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-end justify-between mb-6 border-b border-gray-200 dark:border-ink-700 pb-2">
+                    <h2 class="text-xl font-bold font-serif">Table of Contents</h2>
+                    <span id="chapter-count-label" class="text-xs font-bold text-gray-400 uppercase tracking-widest">0 Items</span>
+                </div>
+                
+                <div id="chapter-grid" class="flex flex-col gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="view-reading" class="hidden w-full h-full flex flex-row">
+        
+        <aside class="w-20 bg-white dark:bg-ink-800 border-r border-cream-200 dark:border-ink-700 flex flex-col items-center py-8 z-50 shrink-0 shadow-xl relative">
+            <button onclick="handleHeaderNav()" class="p-3 mb-8 rounded-xl bg-cream-50 dark:bg-ink-700 text-gray-500 hover:text-vermilion hover:bg-cream-100 dark:hover:bg-ink-600 transition-all shadow-sm" title="Back">
+                <i class="ri-arrow-left-line text-2xl"></i>
+            </button>
+            
+            <div class="mt-auto flex flex-col items-center gap-1">
+                 <span id="sidebar-percent" class="text-[10px] font-bold text-vermilion">0%</span>
+                 <div class="w-1 h-16 bg-gray-200 dark:bg-ink-600 rounded-full overflow-hidden">
+                     <div id="sidebar-progress-bar" class="w-full bg-vermilion rounded-full transition-all duration-300" style="height: 0%"></div>
+                 </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 relative flex flex-col h-full bg-[#fcfaf5] dark:bg-[#1a1a1a] items-center justify-center p-4 lg:p-8 book-wrapper">
+            
+            <div id="book-spine" class="w-full max-w-5xl h-full max-h-[95vh] rounded-xl overflow-hidden relative reader-spine border border-cream-200/60 dark:border-ink-700 flex flex-col">
+                
+                <div class="h-1 w-full bg-gray-100">
+                    <div id="reader-top-progress" class="h-full bg-vermilion transition-all duration-300" style="width: 0%"></div>
+                </div>
+
+                <div class="flex-1 w-full h-full overflow-hidden relative flex flex-col bg-white">
+                    
+                    <div class="flex-1 overflow-y-auto reader-scroll relative" id="reader-scroll-container">
+                        <div id="pdf-wrapper" class="flex flex-col items-center py-10 px-6 lg:px-10">
+                            </div>
+                    </div>
+                    
+                    <div class="h-14 border-t border-gray-100 flex items-center justify-between px-6 bg-[#f9f7f2] z-50 shrink-0">
+                        <button onclick="turnPage('prev')" class="flex items-center gap-2 text-gray-500 hover:text-vermilion transition-colors font-sans text-xs font-bold uppercase tracking-wider group">
+                            <i class="ri-arrow-left-line text-lg group-hover:-translate-x-1 transition-transform"></i> Prev
+                        </button>
+
+                        <div class="text-xs font-serif font-bold text-gray-400 uppercase tracking-widest text-center">
+                            Page <span id="footer-page-num" class="text-vermilion">--</span> / <span id="footer-page-total">--</span>
+                        </div>
+
+                        <button onclick="turnPage('next')" class="flex items-center gap-2 text-gray-500 hover:text-vermilion transition-colors font-sans text-xs font-bold uppercase tracking-wider group">
+                            Next <i class="ri-arrow-right-line text-lg group-hover:translate-x-1 transition-transform"></i>
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <script src="streak.js"></script>
+    
+    <script src="reader.js"></script>
+</body>
+</html>
