@@ -1,11 +1,20 @@
 const LayoutManager = {
     init(activePage) {
+        this.injectFavicon();
         this.renderSidebar(activePage);
         this.renderHeader(activePage);
         
         if(window.appState && window.appState.user) {
             this.updateUser(window.appState.user);
         }
+    },
+
+    injectFavicon() {
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.type = 'image/svg+xml';
+    link.href = '/favicon.svg';
+    document.head.appendChild(link);
     },
 
     renderSidebar(activePage) {
