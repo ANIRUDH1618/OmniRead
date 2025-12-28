@@ -229,17 +229,18 @@ router.post("/google-auth", async (req, res) => {
   } catch (err) { res.status(400).json({ success: false, message: "Google Authentication Failed" }); }
 });
 
-// [CRITICAL UPDATE] RELAY CONFIGURATION
-// We are using Environment Variables now. 
-// This allows you to switch between Gmail, Brevo, or anything else just by changing Render Settings.
+// [FINAL FIX] BREVO + IPv4
+// 1. family: 4 IS MANDATORY for Render to prevent Timeout.
+// 2. We use environment variables so you can tweak settings without redeploying.
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || "smtp.gmail.com",
+  host: process.env.EMAIL_HOST || "smtp-relay.brevo.com",
   port: process.env.EMAIL_PORT || 587,
-  secure: false, // For Port 587, use false (STARTTLS)
+  secure: false, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  family: 4, // <--- THIS PREVENTS THE TIMEOUT / HANG
 });
 
 // Auto-Test Connection on Start
@@ -255,7 +256,6 @@ router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
     
-    // [DEBUG LOGS REMOVED FOR CLEANLINESS - WE KNOW DB WORKS]
     const cleanEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } });
 
@@ -266,7 +266,7 @@ router.post("/forgot-password", async (req, res) => {
     user.otpExpires = Date.now() + 10 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
-    // The sender address MUST match the Brevo/Authenticated User
+    // [CRITICAL] Sender MUST be your verified Gmail, NOT the Brevo ID
     await transporter.sendMail({
       from: `"OmniRead Security" <chaudharyanirudh937@gmail.com>`, 
       to: user.email,
@@ -274,7 +274,7 @@ router.post("/forgot-password", async (req, res) => {
       text: `Your Verification Code is: ${otp}\n\nThis code expires in 10 minutes.`,
     });
     
-    console.log("5. OTP Sent Successfully via Relay");
+    console.log("5. OTP Sent Successfully via Brevo");
     res.status(200).json({ success: true, message: "OTP sent successfully" });
 
   } catch (error) { 
