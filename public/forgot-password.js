@@ -1,4 +1,8 @@
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  // [FIX] SECURITY: Immediately clear any existing session when entering this page
+  // This prevents "Account A" remaining logged in while resetting "Account B"
+  try { await fetch('/api/logout'); } catch(e) {}
+
   // --- UI ELEMENTS ---
   const step1 = document.getElementById("step-1");
   const step2 = document.getElementById("step-2");
@@ -15,14 +19,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let isErrorState = false;
   let appraisalTimeout;
 
-  // --- TEXT CONSTANTS (Dramatic) ---
-  const TEXT_DEFAULT =
-    "It happens to the best of scholars. Provide your email, and we shall send a cipher to restore your access.";
-  const TEXT_SILENCE =
-    "Silence will not open these gates. I need an address to send the courier.";
+  // --- TEXT CONSTANTS ---
+  const TEXT_DEFAULT = "It happens to the best of scholars. Provide your email, and we shall send a cipher to restore your access.";
+  const TEXT_SILENCE = "Silence will not open these gates. I need an address to send the courier.";
   const TEXT_APPRAISAL = "The quill moves. Good. Proceed.";
-  const TEXT_COURIER_SENT =
-    "The courier has been dispatched. Seek the cipher in your inbox.";
+  const TEXT_COURIER_SENT = "The courier has been dispatched. Seek the cipher in your inbox.";
   const TEXT_MISMATCH = "These keys do not match. Focus, Reader.";
   const TEXT_INVALID = "That cipher is incorrect. The archives remain locked.";
 
@@ -37,37 +38,21 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       input.type = "password";
       icon.classList.remove("ri-lock-unlock-line");
-      icon.classList.add("ri-lock-line"); // Default lock
+      icon.classList.add("ri-lock-line");
     }
   };
 
   // --- 2. VOICE & UX HELPERS ---
-  // --- 2. VOICE & UX HELPERS (UPDATED FOR MOBILE) ---
-  const statusVoiceMobile = document.getElementById("status-voice-mobile"); // NEW
-
-  function updateVoice(text, className, mobileText = null) {
-      // Desktop
-      if(statusVoice) {
-          statusVoice.innerText = text;
-          statusVoice.className = className;
-      }
-      // Mobile
-      if(statusVoiceMobile) {
-          statusVoiceMobile.innerText = mobileText || text;
-          if (className.includes('text-drama')) statusVoiceMobile.className = "text-xs text-red-500 font-bold font-serif italic mb-4 animate-pulse";
-          else if (className.includes('text-appraisal')) statusVoiceMobile.className = "text-xs text-green-500 font-bold font-serif mb-4";
-          else statusVoiceMobile.className = "text-xs text-gray-400 font-serif italic mb-4";
-      }
-  }
-
   function setVoiceError(text) {
     isErrorState = true;
-    updateVoice(text, "text-drama text-lg leading-relaxed min-h-[80px]", "⚠️ " + text);
+    statusVoice.innerText = text;
+    statusVoice.className = "text-drama text-lg leading-relaxed min-h-[80px]";
   }
 
   function setVoiceAppraisal() {
     if (!isErrorState) return;
-    updateVoice(TEXT_APPRAISAL, "text-appraisal text-lg leading-relaxed min-h-[80px]", "✅ " + TEXT_APPRAISAL);
+    statusVoice.innerText = TEXT_APPRAISAL;
+    statusVoice.className = "text-appraisal text-lg leading-relaxed min-h-[80px]";
 
     if (appraisalTimeout) clearTimeout(appraisalTimeout);
     appraisalTimeout = setTimeout(() => {
@@ -77,7 +62,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function resetVoice() {
     isErrorState = false;
-    updateVoice(TEXT_DEFAULT, "text-default text-lg leading-relaxed min-h-[80px]", "");
+    statusVoice.innerText = TEXT_DEFAULT;
+    statusVoice.className = "text-default text-lg leading-relaxed min-h-[80px]";
   }
 
   function triggerInputError(inputElement) {
@@ -86,10 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const icon = group.querySelector(".input-icon");
     if (icon) {
       icon.classList.add("icon-error");
-      icon.classList.remove(
-        "text-gray-500",
-        "group-focus-within:text-brand-cyan"
-      );
+      icon.classList.remove("text-gray-500", "group-focus-within:text-brand-cyan");
     }
   }
 
@@ -103,13 +86,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- 3. INPUT LISTENERS (For Appraisal) ---
   document.querySelectorAll("input").forEach((input) => {
     input.addEventListener("input", () => {
       resetValidationStyles();
-      if (isErrorState) {
-        setVoiceAppraisal();
-      }
+      if (isErrorState) setVoiceAppraisal();
     });
   });
 
@@ -117,20 +97,14 @@ document.addEventListener("DOMContentLoaded", () => {
   requestForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const emailInput = document.getElementById("forgot-email");
-
-    // [FIX] Convert to lowercase and remove spaces before sending to server
     userEmail = emailInput.value.toLowerCase().trim();
 
-    if (!userEmail) return;
-
-    // [DRAMATIC VALIDATION]
     if (!userEmail) {
       triggerInputError(emailInput);
       setVoiceError(TEXT_SILENCE);
       return;
     }
 
-    // UI Loading
     const originalText = btnSend.innerText;
     btnSend.innerText = "Summoning Courier...";
     btnSend.disabled = true;
@@ -146,20 +120,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Success
         statusVoice.innerText = TEXT_COURIER_SENT;
-        statusVoice.className =
-          "text-vermilion text-lg font-serif italic font-bold";
-
+        statusVoice.className = "text-vermilion text-lg font-serif italic font-bold";
         step1.classList.add("hidden");
         step2.classList.remove("hidden");
       } else {
         throw new Error(data.message || "User not found");
       }
     } catch (error) {
-      setVoiceError(
-        "I cannot find that address in the archives. Are you sure you are registered?"
-      );
+      setVoiceError("I cannot find that address in the archives.");
       triggerInputError(emailInput);
       btnSend.innerText = originalText;
       btnSend.disabled = false;
@@ -179,11 +148,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const newPass = newPassInput.value;
     const confirmPass = confirmPassInput.value;
 
-    // Basic Validation
     if (!otp || !newPass || !confirmPass) {
-      setVoiceError(
-        "Do not leave fields empty. The ritual requires completeness."
-      );
+      setVoiceError("Do not leave fields empty.");
       return;
     }
 
@@ -194,7 +160,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // UI Loading
     const originalText = btnReset.innerText;
     btnReset.innerText = "Forging New Key...";
     btnReset.disabled = true;
@@ -217,6 +182,7 @@ document.addEventListener("DOMContentLoaded", () => {
         statusVoice.innerText = "Identity Verified. Access Granted.";
         statusVoice.className = "text-appraisal text-lg font-bold";
         setTimeout(() => {
+          // [FIX] Now when we redirect, we are logged in as the RIGHT user
           window.location.href = "/dashboard";
         }, 1000);
       } else {

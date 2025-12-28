@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
 import Progress from "../models/Progress.js"; 
-import Book from "../models/Book.js"; // [NEW] Needed for population
+import Book from "../models/Book.js"; 
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import multer from 'multer';
@@ -13,7 +13,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 const router = express.Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// 1. CLOUDINARY (Profile Pics)
+// 1. CLOUDINARY
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -45,8 +45,8 @@ const createSendToken = (user, statusCode, res) => {
         sameSite: 'lax',
         path: '/' 
     };
-    res.clearCookie('jwt', { path: '/' });
-    res.cookie('jwt', token, cookieOptions);
+    res.clearCookie('jwt', { path: '/' }); 
+    res.cookie('jwt', token, cookieOptions); 
     user.password = undefined;
     res.status(statusCode).json({ success: true, token, data: { user } });
 };
@@ -99,19 +99,15 @@ router.get("/logout", (req, res) => {
   res.status(200).json({ status: "success" });
 });
 
-// [CRITICAL FIX] GET ME - Ensure Data Loading
 router.get("/me", async (req, res) => {
   try {
     if (!req.cookies.jwt) return res.status(401).json({ success: false, message: "Not logged in" });
       
     const decoded = jwt.verify(req.cookies.jwt, process.env.JWT_SECRET || "default-secret-key");
-    
-    // Populate lastRead to show in Dashboard Hero
     const user = await User.findById(decoded.id).populate('lastRead');
     
     if (!user) return res.status(404).json({ success: false });
 
-    // Fetch Progress Data if lastRead exists
     let progressData = null;
     if (user.lastRead) {
         progressData = await Progress.findOne({ user: user._id, book: user.lastRead._id });
@@ -119,17 +115,12 @@ router.get("/me", async (req, res) => {
 
     if (user.photo === 'default') user.photo = generateAvatar(user.name);
 
-    res.status(200).json({ 
-        success: true, 
-        data: user,
-        progress: progressData 
-    });
+    res.status(200).json({ success: true, data: user, progress: progressData });
   } catch (e) {
     res.status(401).json({ success: false });
   }
 });
 
-// [UPDATED] Update Profile
 router.put("/me/update", upload.single('avatar'), async (req, res) => {
     try {
         if (!req.cookies.jwt) return res.status(401).json({ success: false });
@@ -146,7 +137,6 @@ router.put("/me/update", upload.single('avatar'), async (req, res) => {
     }
 });
 
-// [UPDATED] Sync Theme
 router.put("/me/theme", async (req, res) => {
     try {
         if (!req.cookies.jwt) return res.status(401).json({ success: false });
@@ -166,7 +156,6 @@ router.put("/me/theme", async (req, res) => {
     }
 });
 
-// [UPDATED] Sync Streak
 router.put("/me/streak", async (req, res) => {
     try {
         if (!req.cookies.jwt) return res.status(401).json({ success: false });
@@ -189,7 +178,6 @@ router.put("/me/streak", async (req, res) => {
     }
 });
 
-// [UPDATED] Update Last Read Position
 router.put("/me/last-read", async (req, res) => {
     try {
         if (!req.cookies.jwt) return res.status(401).json({ success: false });
@@ -198,10 +186,8 @@ router.put("/me/last-read", async (req, res) => {
         const { bookId, currentPage, currentChapterIndex, percentComplete, chapterPercent } = req.body;
         if(!bookId) return res.status(400).json({success: false});
 
-        // Update User Pointer
         await User.findByIdAndUpdate(decoded.id, { lastRead: bookId });
 
-        // Find or Create Progress
         let progress = await Progress.findOne({ user: decoded.id, book: bookId });
         if (!progress) progress = new Progress({ user: decoded.id, book: bookId });
 
@@ -223,7 +209,6 @@ router.put("/me/last-read", async (req, res) => {
     }
 });
 
-// ... (Google Auth & Password Reset routes - Keep existing) ...
 router.post("/google-auth", async (req, res) => {
   try {
     const { token } = req.body; 
@@ -244,9 +229,17 @@ router.post("/google-auth", async (req, res) => {
   } catch (err) { res.status(400).json({ success: false, message: "Google Authentication Failed" }); }
 });
 
+// [CRITICAL FIX] FORCED SSL CONFIGURATION
+// We removed 'service: gmail' and replaced it with strict settings
+// This prevents Render from trying to use insecure ports that get blocked.
 const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 router.post("/forgot-password", async (req, res) => {
@@ -267,7 +260,11 @@ router.post("/forgot-password", async (req, res) => {
       text: `Your Verification Code is: ${otp}\n\nThis code expires in 10 minutes.`,
     });
     res.status(200).json({ success: true, message: "OTP sent successfully" });
-  } catch (error) { res.status(500).json({ success: false, message: "Server Error" }); }
+  } catch (error) { 
+    // [CRITICAL LOGGING] This will print the EXACT error from Google to your Render Logs
+    console.error("EMAIL ERROR DETECTED:", error); 
+    res.status(500).json({ success: false, message: "Server Error: " + error.message }); 
+  }
 });
 
 router.post("/reset-password", async (req, res) => {
@@ -280,7 +277,10 @@ router.post("/reset-password", async (req, res) => {
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save(); 
-    res.status(200).json({ success: true, message: "Password updated successfully" });
+    
+    // Auto-login the user into the NEW account
+    createSendToken(user, 200, res);
+
   } catch (error) { res.status(500).json({ success: false, message: "Internal Reset Error" }); }
 });
 
