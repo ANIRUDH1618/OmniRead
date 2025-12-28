@@ -230,8 +230,7 @@ router.post("/google-auth", async (req, res) => {
 });
 
 // [CRITICAL FIX] FORCED SSL CONFIGURATION
-// We removed 'service: gmail' and replaced it with strict settings
-// This prevents Render from trying to use insecure ports that get blocked.
+// This prevents Render from trying to use insecure ports (587) that get blocked.
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
@@ -245,7 +244,28 @@ const transporter = nodemailer.createTransport({
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email: { $regex: new RegExp(`^${email.toLowerCase().trim()}$`, "i") } });
+    
+    // [DEBUG LOG 1] Input Tracking
+    console.log("------------------------------------------------");
+    console.log("🔍 FORGOT PASSWORD DEBUG:");
+    console.log("1. Received Email:", email);
+
+    // Sanitize
+    const cleanEmail = email.toLowerCase().trim();
+    console.log("2. Sanitized Email:", cleanEmail);
+
+    // Search
+    const user = await User.findOne({ email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } });
+
+    // [DEBUG LOG 2] DB Result Tracking
+    if (user) {
+        console.log("3. DB Result: ✅ USER FOUND:", user._id);
+        console.log("4. User Email in DB:", user.email);
+    } else {
+        console.log("3. DB Result: ❌ USER IS NULL (Not found in DB)");
+    }
+    console.log("------------------------------------------------");
+
     if (!user) return res.status(404).json({ success: false, message: "No user found." });
 
     const otp = crypto.randomInt(100000, 999999).toString();
@@ -259,10 +279,13 @@ router.post("/forgot-password", async (req, res) => {
       subject: "OmniRead Password Reset Cipher",
       text: `Your Verification Code is: ${otp}\n\nThis code expires in 10 minutes.`,
     });
+    
+    console.log("5. OTP Sent Successfully via SMTP");
     res.status(200).json({ success: true, message: "OTP sent successfully" });
+
   } catch (error) { 
-    // [CRITICAL LOGGING] This will print the EXACT error from Google to your Render Logs
-    console.error("EMAIL ERROR DETECTED:", error); 
+    // This logs CRASHES (like SMTP connection failures)
+    console.error("6. 💥 CRITICAL ERROR:", error); 
     res.status(500).json({ success: false, message: "Server Error: " + error.message }); 
   }
 });
