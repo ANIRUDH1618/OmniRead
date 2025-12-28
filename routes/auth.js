@@ -229,16 +229,29 @@ router.post("/google-auth", async (req, res) => {
   } catch (err) { res.status(400).json({ success: false, message: "Google Authentication Failed" }); }
 });
 
-// [CRITICAL FIX] FORCED SSL CONFIGURATION
-// This prevents Render from trying to use insecure ports (587) that get blocked.
+// [CRITICAL FIX] FORCED IPv4 + SECURE CONNECTION
+// 1. port: 465 (Forces SSL)
+// 2. secure: true (Handshake immediately)
+// 3. family: 4 (Forces IPv4 to prevent Cloud IPv6 timeouts)
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
-  secure: true, // true for 465, false for other ports
+  secure: true, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  family: 4, // <--- THIS IS THE MAGIC LINE FOR RENDER TIMEOUTS
+});
+
+// [NEW] AUTO-TEST CONNECTION ON STARTUP
+// Look for "✅ SMTP Connection Established" in your Render logs!
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("🚨 STARTUP MAIL ERROR: ", error);
+  } else {
+    console.log("✅ SMTP Connection Established Successfully");
+  }
 });
 
 router.post("/forgot-password", async (req, res) => {
