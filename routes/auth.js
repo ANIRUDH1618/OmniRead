@@ -229,23 +229,20 @@ router.post("/google-auth", async (req, res) => {
   } catch (err) { res.status(400).json({ success: false, message: "Google Authentication Failed" }); }
 });
 
-// [CRITICAL FIX] FORCED IPv4 + SECURE CONNECTION
-// 1. port: 465 (Forces SSL)
-// 2. secure: true (Handshake immediately)
-// 3. family: 4 (Forces IPv4 to prevent Cloud IPv6 timeouts)
+// [CRITICAL UPDATE] RELAY CONFIGURATION
+// We are using Environment Variables now. 
+// This allows you to switch between Gmail, Brevo, or anything else just by changing Render Settings.
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, 
+  host: process.env.EMAIL_HOST || "smtp.gmail.com",
+  port: process.env.EMAIL_PORT || 587,
+  secure: false, // For Port 587, use false (STARTTLS)
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  family: 4, // <--- THIS IS THE MAGIC LINE FOR RENDER TIMEOUTS
 });
 
-// [NEW] AUTO-TEST CONNECTION ON STARTUP
-// Look for "✅ SMTP Connection Established" in your Render logs!
+// Auto-Test Connection on Start
 transporter.verify((error, success) => {
   if (error) {
     console.error("🚨 STARTUP MAIL ERROR: ", error);
@@ -258,26 +255,9 @@ router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
     
-    // [DEBUG LOG 1] Input Tracking
-    console.log("------------------------------------------------");
-    console.log("🔍 FORGOT PASSWORD DEBUG:");
-    console.log("1. Received Email:", email);
-
-    // Sanitize
+    // [DEBUG LOGS REMOVED FOR CLEANLINESS - WE KNOW DB WORKS]
     const cleanEmail = email.toLowerCase().trim();
-    console.log("2. Sanitized Email:", cleanEmail);
-
-    // Search
     const user = await User.findOne({ email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } });
-
-    // [DEBUG LOG 2] DB Result Tracking
-    if (user) {
-        console.log("3. DB Result: ✅ USER FOUND:", user._id);
-        console.log("4. User Email in DB:", user.email);
-    } else {
-        console.log("3. DB Result: ❌ USER IS NULL (Not found in DB)");
-    }
-    console.log("------------------------------------------------");
 
     if (!user) return res.status(404).json({ success: false, message: "No user found." });
 
@@ -286,18 +266,18 @@ router.post("/forgot-password", async (req, res) => {
     user.otpExpires = Date.now() + 10 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
+    // The sender address MUST match the Brevo/Authenticated User
     await transporter.sendMail({
-      from: `"OmniRead Security" <${process.env.EMAIL_USER}>`,
+      from: `"OmniRead Security" <chaudharyanirudh937@gmail.com>`, 
       to: user.email,
       subject: "OmniRead Password Reset Cipher",
       text: `Your Verification Code is: ${otp}\n\nThis code expires in 10 minutes.`,
     });
     
-    console.log("5. OTP Sent Successfully via SMTP");
+    console.log("5. OTP Sent Successfully via Relay");
     res.status(200).json({ success: true, message: "OTP sent successfully" });
 
   } catch (error) { 
-    // This logs CRASHES (like SMTP connection failures)
     console.error("6. 💥 CRITICAL ERROR:", error); 
     res.status(500).json({ success: false, message: "Server Error: " + error.message }); 
   }
@@ -314,7 +294,7 @@ router.post("/reset-password", async (req, res) => {
     user.otpExpires = undefined;
     await user.save(); 
     
-    // Auto-login the user into the NEW account
+    // Auto-login
     createSendToken(user, 200, res);
 
   } catch (error) { res.status(500).json({ success: false, message: "Internal Reset Error" }); }
