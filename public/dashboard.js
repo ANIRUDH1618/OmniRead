@@ -7,6 +7,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Listen for bookmark changes to update "For You" live
   window.addEventListener('bookmarkUpdated', (e) => {
       filterAndRenderForYou();
+      // Also refresh hero state if it matches
+      const currentHeroTitle = document.getElementById("hero-title")?.innerText;
+      const updatedBook = window.appState.allBooks.find(b => b._id === e.detail.bookId);
+      if(updatedBook && updatedBook.title === currentHeroTitle) {
+          updateHero(updatedBook, true);
+      }
   });
 });
 
@@ -74,8 +80,12 @@ function updateHero(book, isResume = true) {
     if (window.appState.progress && window.appState.progress.book === book._id) {
         progress = window.appState.progress.percentComplete || 0;
     }
-    document.getElementById("hero-progress-bar").style.width = `${progress}%`;
-    document.getElementById("hero-progress-text").innerText = `${progress}%`;
+    
+    // [FIX 1] Round the percentage to whole number
+    const displayProgress = Math.round(progress);
+    
+    document.getElementById("hero-progress-bar").style.width = `${displayProgress}%`;
+    document.getElementById("hero-progress-text").innerText = `${displayProgress}%`;
 
     const continueBtn = document.getElementById("hero-continue-btn");
     if (continueBtn) {
@@ -86,12 +96,22 @@ function updateHero(book, isResume = true) {
     const heroBmBtn = document.getElementById("hero-bookmark-btn");
     if(heroBmBtn) {
         heroBmBtn.style.display = 'flex'; 
+        
+        // [FIX 2] Check bookmark status and update icon/style
         const isBookmarked = window.isBookmarked(book._id);
+        
+        // Reset classes first
+        heroBmBtn.className = "hero-btn px-4 py-2.5 rounded-lg transition-colors border cursor-pointer";
+        
         if (isBookmarked) {
-            heroBmBtn.classList.add("active"); heroBmBtn.innerHTML = '<i class="ri-bookmark-fill text-xl"></i>';
+            heroBmBtn.classList.add("border-vermilion", "text-vermilion", "bg-vermilion/10");
+            heroBmBtn.innerHTML = '<i class="ri-bookmark-fill text-xl"></i>';
         } else {
-            heroBmBtn.classList.remove("active"); heroBmBtn.innerHTML = '<i class="ri-bookmark-line text-xl"></i>';
+            heroBmBtn.classList.add("border-cream-300", "dark:border-ink-600", "hover:bg-cream-100", "dark:hover:bg-ink-700");
+            heroBmBtn.innerHTML = '<i class="ri-bookmark-line text-xl"></i>';
         }
+        
+        // Clone to clear old listeners, then re-attach
         const newBtn = heroBmBtn.cloneNode(true);
         heroBmBtn.parentNode.replaceChild(newBtn, heroBmBtn);
         newBtn.addEventListener("click", (e) => window.handleBookmarkToggle(e, book._id)); 

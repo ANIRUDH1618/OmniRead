@@ -1,126 +1,137 @@
 document.addEventListener("DOMContentLoaded", async () => {
-  // --- ELEMENTS ---
-  const nameEl = document.getElementById("profile-name");
-  const imgEl = document.getElementById("profile-image");
-  const inputName = document.getElementById("input-name");
-  const inputEmail = document.getElementById("input-email");
-  const logoutBtn = document.getElementById("logout-btn");
+  LayoutManager.init('profile');
+  initTheme();
   
-  const form = document.getElementById("profile-form");
-  const avatarInput = document.getElementById("avatar-input");
-  const updateBtn = document.getElementById("update-btn");
-
-  // --- 1. FETCH USER DATA ---
-  try {
-    const res = await fetch("/api/me");
-    const data = await res.json();
-
-    if (data.success) {
-      const user = data.data;
-
-      // Populate text fields
-      nameEl.innerText = user.name;
-      inputName.value = user.name;
-      inputEmail.value = user.email;
-
-      // Logic: Trust the DB for image
-      if (imgEl) {
-          imgEl.src = user.photo;
-          imgEl.onerror = () => {
-              imgEl.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ea580c&color=fff&size=200`;
-          };
-      }
-    } else {
-      window.location.href = "/login";
-    }
-  } catch (error) {
-    console.error("Failed to load identity:", error);
+  // [FIX] Load user data to populate the profile, including the image
+  if (window.loadUser) {
+      await window.loadUser();
+      populateProfileForm(window.appState.user);
   }
 
-  // --- 2. IMAGE PREVIEW ---
-  if (avatarInput && imgEl) {
-      avatarInput.addEventListener('change', (e) => {
-          const file = e.target.files[0];
-          if (file) {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                  imgEl.src = e.target.result; // Instant preview
-              };
-              reader.readAsDataURL(file);
-          }
-      });
-  }
-
-  // --- 3. UPDATE LEDGER (DRAMATIC SAVE) ---
-  if (form) {
-      form.addEventListener('submit', async (e) => {
-          e.preventDefault();
-          
-          // UI Loading State
-          const originalBtnContent = updateBtn.innerHTML;
-          updateBtn.disabled = true;
-          updateBtn.innerHTML = `<i class="ri-loader-4-line animate-spin"></i> Inscribing...`;
-          
-          const formData = new FormData();
-          formData.append('name', inputName.value);
-          if (avatarInput.files[0]) {
-              formData.append('avatar', avatarInput.files[0]);
-          }
-
-          try {
-              const res = await fetch('/api/me/update', {
-                  method: 'PUT',
-                  body: formData
-              });
-              const data = await res.json();
-
-              if (data.success) {
-                  // Update sidebar/static text
-                  nameEl.innerText = data.data.user.name;
-                  
-                  // DRAMATIC SUCCESS EFFECT
-                  updateBtn.classList.remove('bg-ink-900', 'dark:bg-white', 'text-white', 'dark:text-black');
-                  updateBtn.classList.add('bg-green-600', 'text-white', 'scale-105');
-                  updateBtn.innerHTML = `<i class="ri-check-double-line"></i> Ledger Updated`;
-                  
-                  // Flash the card border
-                  const card = document.querySelector('.max-w-4xl');
-                  card.classList.add('ring-4', 'ring-green-500/50', 'transition-all');
-
-                  setTimeout(() => {
-                      // Revert styles
-                      updateBtn.classList.add('bg-ink-900', 'dark:bg-white', 'text-white', 'dark:text-black');
-                      updateBtn.classList.remove('bg-green-600', 'text-white', 'scale-105');
-                      updateBtn.innerHTML = originalBtnContent;
-                      updateBtn.disabled = false;
-                      card.classList.remove('ring-4', 'ring-green-500/50');
-                  }, 2000);
-
-              } else {
-                  alert("Failed to update ledger.");
-                  updateBtn.innerHTML = originalBtnContent;
-                  updateBtn.disabled = false;
-              }
-          } catch (err) {
-              console.error(err);
-              updateBtn.innerHTML = "Error";
-              setTimeout(() => {
-                  updateBtn.innerHTML = originalBtnContent;
-                  updateBtn.disabled = false;
-              }, 2000);
-          }
-      });
-  }
-
-  // --- 4. LOGOUT LOGIC ---
-  if (logoutBtn) {
-      logoutBtn.addEventListener("click", async () => {
-        try {
-          await fetch("/api/logout");
-          window.location.href = "/login";
-        } catch (err) {
-          console.error("Logout failed", err);
-        }
-      });
-  }
+  setupEventListeners();
 });
+
+function populateProfileForm(user) {
+    if (!user) return;
+
+    // Populate Inputs
+    const nameInput = document.getElementById("input-name");
+    const emailInput = document.getElementById("input-email");
+    if(nameInput) nameInput.value = user.name;
+    if(emailInput) emailInput.value = user.email;
+
+    // Populate Sidebar info
+    document.getElementById("profile-name").innerText = user.name;
+    
+    // [FIX] Populate Profile Image with Fallback
+    const profileImg = document.getElementById("profile-image");
+    if (profileImg) {
+        profileImg.src = user.photo;
+        // Fallback to UI Avatars if image fails to load
+        profileImg.onerror = () => {
+            profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ea580c&color=fff`;
+        };
+    }
+}
+
+function setupEventListeners() {
+    const form = document.getElementById("profile-form");
+    if(form) form.addEventListener("submit", handleProfileUpdate);
+
+    const logoutBtn = document.getElementById("logout-btn");
+    if(logoutBtn) logoutBtn.addEventListener("click", handleLogout);
+
+    const avatarInput = document.getElementById("avatar-input");
+    if(avatarInput) avatarInput.addEventListener("change", handleAvatarUpload);
+}
+
+async function handleProfileUpdate(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById("input-name");
+    const newName = nameInput.value.trim();
+    if (!newName) return showToast("Name cannot be empty.", "error");
+
+    const btn = document.getElementById("update-btn");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "<i class='ri-loader-4-line animate-spin'></i> Updating...";
+    btn.disabled = true;
+
+    try {
+        const res = await API.put("/api/me", { name: newName });
+        if (res.success) {
+            showToast("Profile updated successfully!", "success");
+            // Update global state and UI
+            window.appState.user = res.user;
+            populateProfileForm(res.user);
+            LayoutManager.updateUser(res.user);
+        }
+    } catch (err) {
+        showToast(err.message || "Failed to update profile.", "error");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function handleAvatarUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return showToast("Please select an image file.", "error");
+    if (file.size > 5 * 1024 * 1024) return showToast("Image must be under 5MB.", "error");
+
+    // Show loading state on image
+    const profileImg = document.getElementById("profile-image");
+    const originalSrc = profileImg.src;
+    profileImg.style.opacity = '0.5';
+    showToast("Uploading image...", "info");
+
+    try {
+        const formData = new FormData();
+        formData.append("avatar", file);
+        const res = await API.put("/api/me/avatar", formData, true); // true for multipart
+        if (res.success) {
+            showToast("Avatar updated!", "success");
+            // Update global state and UI with new photo URL
+            window.appState.user.photo = res.photoUrl;
+            populateProfileForm(window.appState.user);
+            LayoutManager.updateUser(window.appState.user);
+        }
+    } catch (err) {
+        showToast(err.message || "Failed to upload avatar.", "error");
+        profileImg.src = originalSrc; // Revert on failure
+    } finally {
+        profileImg.style.opacity = '1';
+        e.target.value = ''; // Reset file input
+    }
+}
+
+async function handleLogout() {
+    try {
+        await API.post("/api/auth/logout");
+        window.location.href = "/login.html";
+    } catch (err) {
+        console.error("Logout failed", err);
+        window.location.href = "/login.html"; // Force redirect anyway
+    }
+}
+
+function showToast(message, type = "info") {
+    const container = document.getElementById("toast-container");
+    const toast = document.createElement("div");
+    const colors = {
+        success: "bg-green-500",
+        error: "bg-red-500",
+        info: "bg-ink-900"
+    };
+    toast.className = `${colors[type]} text-white px-6 py-3 rounded-xl shadow-lg font-bold text-sm animate-fade-in flex items-center gap-2`;
+    toast.innerHTML = `
+        <i class="${type === 'success' ? 'ri-checkbox-circle-line' : type === 'error' ? 'ri-error-warning-line' : 'ri-information-line'} text-lg"></i>
+        <span>${message}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(20px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("OmniRead Reader: v40.1 (Authenticated Stream Mode) Loaded"); 
+    console.log("OmniRead Reader: v42.0 (Scroll Sync) Loaded"); 
     
     const params = new URLSearchParams(window.location.search);
     const bookId = params.get('bookId');
@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!bookId) {
         window.location.href = '/dashboard';
         return;
+    }
+
+    // [FIX] Attach global scroll listener immediately
+    const scrollContainer = document.getElementById('reader-scroll-container');
+    if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleScrollSync);
     }
 
     await loadBookData(bookId);
@@ -19,7 +25,9 @@ const readerState = {
     user: null,
     totalPages: 0,
     currentPage: 1, 
-    startPage: 1
+    startPercent: 0, // [NEW] Track percentage instead of page
+    currentScale: 1.0,
+    autoScale: true
 };
 
 const pdfState = {
@@ -28,42 +36,61 @@ const pdfState = {
     pageObserver: null
 };
 
+// --- SCROLL SYNC LOGIC (THE FIX) ---
+let scrollTimeout;
+function handleScrollSync(e) {
+    const container = e.target;
+    
+    // 1. Calculate Percentage
+    const totalHeight = container.scrollHeight - container.clientHeight;
+    if (totalHeight <= 0) return;
+    
+    const percent = (container.scrollTop / totalHeight) * 100;
+    
+    // 2. Update UI (Smooth, no jumping)
+    const topBar = document.getElementById('reader-top-progress');
+    const sideBar = document.getElementById('sidebar-progress-bar');
+    const sideText = document.getElementById('sidebar-percent');
+    
+    if(topBar) topBar.style.width = `${percent}%`;
+    if(sideBar) sideBar.style.height = `${percent}%`;
+    if(sideText) sideText.innerText = `${Math.round(percent)}%`;
+
+    // 3. Save to DB (Debounced)
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+        saveProgressToServer(percent);
+    }, 1000); 
+}
+
+async function saveProgressToServer(percent) {
+    if(!readerState.book) return;
+    try {
+        // We still send currentPage for the footer, but percentComplete is the master
+        await fetch('/api/me/last-read', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                bookId: readerState.book._id, 
+                currentPage: readerState.currentPage, 
+                currentChapterIndex: readerState.currentChapterIndex, 
+                percentComplete: percent 
+            })
+        });
+    } catch (e) { console.error("Save failed", e); }
+}
+
 // --- NAVIGATION ---
 window.handleHeaderNav = function() {
     if (typeof StreakManager !== 'undefined') StreakManager.stopReading();
-    const readingView = document.getElementById('view-reading');
-    const homeView = document.getElementById('view-book-home');
-    if (!readingView.classList.contains('hidden')) {
-        readingView.classList.add('hidden');
-        homeView.classList.remove('hidden');
-    } else {
-        window.location.href = '/dashboard';
-    }
+    window.location.href = '/dashboard';
 }
 
 window.resumeReading = function() {
     loadChapter(readerState.currentChapterIndex);
 }
 
-window.toggleHomeBookmark = async function() {
-    if (!readerState.book) return;
-    const icon = document.getElementById('home-bookmark-icon');
-    if(icon) {
-        const isFilled = icon.classList.contains('ri-bookmark-fill');
-        icon.className = isFilled ? 'ri-bookmark-line text-xl' : 'ri-bookmark-fill text-xl';
-        if(!isFilled) {
-             icon.parentElement.classList.add('border-vermilion', 'text-vermilion');
-             icon.parentElement.classList.remove('border-gray-300', 'text-gray-400');
-        } else {
-             icon.parentElement.classList.remove('border-vermilion', 'text-vermilion');
-             icon.parentElement.classList.add('border-gray-300', 'text-gray-400');
-        }
-    }
-    try {
-        await fetch(`/api/books/${readerState.book._id}/bookmark`, { method: 'PUT', headers: { 'Content-Type': 'application/json' } });
-    } catch (err) { console.error("Bookmark Error", err); }
-}
-
+// --- DATA LOADING ---
 async function loadBookData(id) {
     try {
         const [bookRes, meRes] = await Promise.all([
@@ -76,11 +103,13 @@ async function loadBookData(id) {
         if (bookData.success) {
             readerState.book = bookData.book;
             readerState.chapters = bookData.chapters;
+            
+            // [FIX] Load the Saved Percentage
             if (bookData.userProgress) {
                 readerState.currentChapterIndex = bookData.userProgress.currentChapterIndex || 0;
-                readerState.startPage = bookData.userProgress.currentPage || 1;
-                readerState.currentPage = readerState.startPage; 
+                readerState.startPercent = bookData.userProgress.percentComplete || 0;
             }
+            
             if (meData.success) {
                 readerState.user = meData.data;
                 if (typeof StreakManager !== 'undefined' && readerState.user._id) {
@@ -98,19 +127,9 @@ function renderHomeUI() {
     document.getElementById('home-book-author').innerText = readerState.book.author;
     document.getElementById('home-book-cover').src = readerState.book.coverImage;
 
-    if(readerState.user && readerState.user.bookmarks.includes(readerState.book._id)) {
-        const icon = document.getElementById('home-bookmark-icon');
-        if(icon) {
-             icon.className = 'ri-bookmark-fill text-xl';
-             icon.parentElement.classList.add('border-vermilion', 'text-vermilion');
-             icon.parentElement.classList.remove('border-gray-300', 'text-gray-400');
-        }
-    }
-
     const grid = document.getElementById('chapter-grid');
     grid.innerHTML = '';
     
-    // Check if Single PDF or Anthology
     const hasChapters = readerState.chapters && readerState.chapters.length > 0;
     const isSinglePdf = readerState.book.uploadType === 'pdf_single' || readerState.book.uploadType === 'textbook';
 
@@ -139,7 +158,7 @@ function createLongChapterCard(title, index, subtitle) {
     return btn;
 }
 
-// --- MAIN READER LOGIC (VIA BACKEND STREAM) ---
+// --- READER INITIALIZATION ---
 
 function loadChapter(index) {
     readerState.currentChapterIndex = index;
@@ -150,7 +169,7 @@ function loadChapter(index) {
     const wrapper = document.getElementById('pdf-wrapper');
     wrapper.innerHTML = ''; 
 
-    // 1. Manual Text
+    // Manual Text Handler
     const isText = (type === 'manual' || type === 'manual_text');
     if (isText) {
         const content = readerState.chapters[index]?.content || "No content.";
@@ -158,7 +177,7 @@ function loadChapter(index) {
         return;
     }
 
-    // 2. PDF -> Call the Server Streamer
+    // PDF Streamer
     const apiUrl = `/api/books/read/${readerState.book._id}?chapterIndex=${index}`;
     initContinuousPDF(apiUrl);
 }
@@ -166,19 +185,22 @@ function loadChapter(index) {
 function renderManualText(text) {
     const wrapper = document.getElementById('pdf-wrapper');
     const textContainer = document.createElement('div');
-    textContainer.className = "max-w-3xl mx-auto p-8 bg-white dark:bg-ink-800 shadow-sm rounded-lg text-lg leading-relaxed text-ink-900 dark:text-gray-200 font-serif whitespace-pre-wrap";
+    textContainer.className = "max-w-3xl mx-auto p-6 md:p-8 bg-white dark:bg-ink-800 shadow-sm rounded-lg text-base md:text-lg leading-relaxed text-ink-900 dark:text-gray-200 font-serif whitespace-pre-wrap";
     textContainer.textContent = text || "No content written.";
     wrapper.appendChild(textContainer);
-    document.getElementById('footer-page-total').textContent = "1";
-    document.getElementById('footer-page-num').textContent = "1";
+    document.querySelector('.zoom-controls').style.display = 'none';
+    
+    // Restore Position for text
+    restoreScrollPosition();
 }
-
-// ... (Previous code remains same until initContinuousPDF)
 
 async function initContinuousPDF(url) {
     const wrapper = document.getElementById('pdf-wrapper');
-    wrapper.innerHTML = '<div class="text-center py-10 flex flex-col items-center"><i class="ri-loader-4-line animate-spin text-3xl text-vermilion mb-2"></i><span class="text-gray-500 mt-2">Opening Document...</span></div>';
+    wrapper.innerHTML = '<div class="text-center py-20 flex flex-col items-center"><i class="ri-loader-4-line animate-spin text-4xl text-vermilion mb-4"></i><span class="text-gray-500 text-sm font-bold uppercase tracking-widest">Deciphering Scroll...</span></div>';
     
+    // Show Zoom Controls (Desktop Only via CSS)
+    document.querySelector('.zoom-controls').style.display = 'flex';
+
     if (typeof pdfjsLib === 'undefined') {
         wrapper.innerHTML = '<div class="text-red-500 text-center p-4">Error: PDF Engine not loaded.</div>';
         return;
@@ -188,21 +210,11 @@ async function initContinuousPDF(url) {
     if(pdfState.pageObserver) pdfState.pageObserver.disconnect();
 
     try {
-        // [IMPORTANT] 'credentials: include' MUST be here to send cookies
         const response = await fetch(url, { credentials: 'include' });
-        
-        if (!response.ok) {
-            // [FIX] Error handling to see if it's Proxy 401 or Auth 401
-            const errText = await response.text();
-            throw new Error(`Server Error (${response.status}): ${errText.substring(0, 100)}`);
-        }
+        if (!response.ok) throw new Error(`Server Error (${response.status})`);
         
         const blob = await response.arrayBuffer();
-        // ... (Rest of function is same)
-
-        if (blob.byteLength === 0) {
-            throw new Error("Empty file received. Please re-upload this book.");
-        }
+        if (blob.byteLength === 0) throw new Error("Empty file.");
 
         const loadingTask = pdfjsLib.getDocument({
             data: blob,
@@ -215,106 +227,133 @@ async function initContinuousPDF(url) {
         pdfState.pdfDoc = pdfDoc_;
         readerState.totalPages = pdfDoc_.numPages;
         
-        document.getElementById('footer-page-total').textContent = readerState.totalPages;
         wrapper.innerHTML = ''; 
 
+        // RENDER PLACEHOLDERS
         for (let i = 1; i <= pdfDoc_.numPages; i++) {
             const pageDiv = document.createElement('div');
             pageDiv.className = 'pdf-page'; 
             pageDiv.id = `page-container-${i}`;
             pageDiv.dataset.pageNum = i;
+            
             const canvas = document.createElement('canvas');
             canvas.id = `page-${i}`;
-            canvas.className = 'block mx-auto';
+            canvas.className = 'block mx-auto shadow-sm';
+            
             pageDiv.appendChild(canvas);
             wrapper.appendChild(pageDiv);
         }
 
+        // Auto-Scale logic (Mobile: 100%, Desktop: Fit Width)
+        if (readerState.autoScale) {
+            calculateFitWidthScale();
+        }
+
+        updateZoomIndicator();
         setupObservers();
 
-        if (readerState.startPage > 1) {
-            setTimeout(() => {
-                const target = document.getElementById(`page-container-${readerState.startPage}`);
-                if (target) {
-                    target.scrollIntoView({ behavior: 'auto', block: 'start' });
-                    updateProgress(readerState.startPage);
-                }
-            }, 500);
-        }
+        // [FIX] Restore Position Logic
+        // We wait a tiny bit for layout to settle, then scroll to percentage
+        setTimeout(() => {
+            restoreScrollPosition();
+        }, 500);
 
     } catch (err) {
         console.error("PDF Error", err);
-        wrapper.innerHTML = `<div class="text-red-500 text-center p-10">
-            <p class="font-bold text-lg">Failed to open the book.</p>
-            <p class="text-sm opacity-75 mt-2">${err.message}</p>
-        </div>`;
+        wrapper.innerHTML = `<div class="text-red-500 text-center p-10"><p class="font-bold">Failed to load.</p><p class="text-xs mt-2">${err.message}</p></div>`;
     }
 }
 
+function restoreScrollPosition() {
+    const container = document.getElementById('reader-scroll-container');
+    if (container && readerState.startPercent > 0) {
+        const totalHeight = container.scrollHeight - container.clientHeight;
+        const targetScroll = (readerState.startPercent / 100) * totalHeight;
+        container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+    }
+}
+
+// --- RENDERING HELPERS ---
+
+window.changeZoom = function(delta) {
+    readerState.autoScale = false;
+    let newScale = readerState.currentScale + delta;
+    if (newScale < 0.3) newScale = 0.3;
+    if (newScale > 3.0) newScale = 3.0;
+    
+    readerState.currentScale = parseFloat(newScale.toFixed(2));
+    updateZoomIndicator();
+    
+    pdfState.pagesRendered.clear();
+    setupObservers(); 
+}
+
+window.resetZoom = function() {
+    readerState.autoScale = true;
+    calculateFitWidthScale();
+    updateZoomIndicator();
+    pdfState.pagesRendered.clear();
+    setupObservers();
+}
+
+function updateZoomIndicator() {
+    const ind = document.getElementById('zoom-level-indicator');
+    if(ind) ind.innerText = `${Math.round(readerState.currentScale * 100)}%`;
+}
+
+async function calculateFitWidthScale() {
+    if (!pdfState.pdfDoc) return;
+    try {
+        const page = await pdfState.pdfDoc.getPage(1);
+        // Mobile check: if screen < 768, maximize usage
+        const isMobile = window.innerWidth < 768;
+        const padding = isMobile ? 0 : 32;
+        
+        const containerWidth = document.getElementById('pdf-wrapper').clientWidth - padding;
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        readerState.currentScale = parseFloat((containerWidth / unscaledViewport.width).toFixed(2));
+    } catch(e) {}
+}
+
+// --- PAGE OBSERVER (Only for discrete page numbers) ---
 function setupObservers() {
-    const options = { root: document.getElementById('reader-scroll-container'), rootMargin: '600px', threshold: [0.05, 0.5] };
+    if(pdfState.pageObserver) pdfState.pageObserver.disconnect();
+
+    const options = { root: document.getElementById('reader-scroll-container'), rootMargin: '600px', threshold: 0.01 };
+    
     pdfState.pageObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const pageNum = parseInt(entry.target.dataset.pageNum);
-                if (!pdfState.pagesRendered.has(pageNum)) renderPage(pageNum);
-                if (entry.intersectionRatio > 0.3) updateProgress(pageNum);
+                renderPage(pageNum);
+                readerState.currentPage = pageNum; // Just for reference
             }
         });
     }, options);
+    
     document.querySelectorAll('.pdf-page').forEach(div => pdfState.pageObserver.observe(div));
 }
 
 function renderPage(num) {
     if (pdfState.pagesRendered.has(num)) return;
     pdfState.pagesRendered.add(num);
+    
     pdfState.pdfDoc.getPage(num).then((page) => {
         const canvas = document.getElementById(`page-${num}`);
         if(!canvas) return;
         const ctx = canvas.getContext('2d');
-        const container = document.getElementById('pdf-wrapper');
-        const availableWidth = container.clientWidth; 
-        const unscaledViewport = page.getViewport({ scale: 1 });
-        const scale = availableWidth / unscaledViewport.width;
-        const viewport = page.getViewport({ scale: scale });
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
+        const outputScale = window.devicePixelRatio || 1; 
+        
+        const viewport = page.getViewport({ scale: readerState.currentScale });
+        
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
         canvas.style.width = Math.floor(viewport.width) + "px";
         canvas.style.height = Math.floor(viewport.height) + "px";
-        page.render({ canvasContext: ctx, viewport: viewport });
+        
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+        page.render({ canvasContext: ctx, transform: transform, viewport: viewport });
     });
 }
 
-function updateProgress(pageNum) {
-    readerState.currentPage = pageNum;
-    document.getElementById('footer-page-num').textContent = pageNum;
-    if (readerState.totalPages > 0) {
-        const percent = Math.round((pageNum / readerState.totalPages) * 100);
-        document.getElementById('sidebar-progress-bar').style.height = `${percent}%`;
-        document.getElementById('sidebar-percent').innerText = `${percent}%`;
-        document.getElementById('reader-top-progress').style.width = `${percent}%`;
-        saveActiveProgress(pageNum, percent);
-    }
-}
-
-window.turnPage = function(direction) {
-    let targetPage = readerState.currentPage;
-    if (direction === 'next') { if (targetPage >= readerState.totalPages) return; targetPage++; } 
-    else { if (targetPage <= 1) return; targetPage--; }
-    const el = document.getElementById(`page-container-${targetPage}`);
-    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); updateProgress(targetPage); }
-}
-
-let saveTimeout;
-async function saveActiveProgress(pageNum, percent) {
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-        try {
-            await fetch('/api/me/last-read', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bookId: readerState.book._id, currentPage: pageNum, currentChapterIndex: readerState.currentChapterIndex, percentComplete: percent })
-            });
-        } catch (e) {}
-    }, 1000); 
-}

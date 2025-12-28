@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniRead | Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
@@ -44,77 +45,71 @@
         
         <div id="app-header"></div>
 
-        <div id="view-library" class="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8 scroll-smooth no-scrollbar">
+        <div id="view-library" class="flex-1 overflow-y-auto p-4 lg:p-10 pb-24 lg:pb-10 space-y-6 scroll-smooth no-scrollbar">
             
-            <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-white dark:bg-ink-800 rounded-2xl p-6 lg:p-8 flex items-center gap-6 shadow-paper border border-cream-200 dark:border-ink-700 relative overflow-hidden group">
-                    <div class="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-cream-100 dark:from-ink-700 to-transparent opacity-50 pointer-events-none"></div>
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+                <div class="lg:col-span-2 bg-white dark:bg-ink-800 rounded-2xl p-5 shadow-paper border border-cream-200 dark:border-ink-700 relative overflow-hidden group">
+                    <div class="absolute right-0 top-0 w-full h-full bg-gradient-to-t lg:bg-gradient-to-l from-cream-100 dark:from-ink-700/50 to-transparent opacity-50 pointer-events-none"></div>
                     
-                    <div class="hidden sm:block shrink-0 relative z-10 transition-transform duration-500 group-hover:-translate-y-2">
-                        <img id="hero-cover" src="" class="w-32 h-48 object-cover rounded shadow-lg shadow-black/20 dark:shadow-black/50">
-                    </div>
-                    
-                    <div class="relative z-10 flex-1">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="w-2 h-2 rounded-full bg-vermilion"></span>
-                            <span class="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Last Read</span>
+                    <div class="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
+                        <div class="shrink-0 relative shadow-2xl rounded-lg overflow-hidden w-28 sm:w-32 aspect-[2/3]">
+                            <img id="hero-cover" src="" class="w-full h-full object-cover">
                         </div>
-                        <h1 id="hero-title" class="text-3xl font-serif font-bold text-ink-900 dark:text-white mb-1">Loading...</h1>
-                        <p id="hero-author" class="text-gray-500 dark:text-gray-400 text-sm mb-6">Loading...</p>
                         
-                        <div class="flex items-center gap-4 mb-6">
-                            <div class="flex-1 h-1.5 bg-cream-200 dark:bg-ink-700 rounded-full overflow-hidden">
-                                <div id="hero-progress-bar" class="h-full bg-vermilion w-[0%] rounded-full transition-all duration-1000"></div>
+                        <div class="flex-1 w-full flex flex-col justify-center">
+                            <div class="flex items-center justify-center sm:justify-start gap-2 mb-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-vermilion animate-pulse"></span>
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-vermilion">Continue Reading</span>
                             </div>
-                            <span id="hero-progress-text" class="text-sm font-mono text-gray-600 dark:text-gray-300">0%</span>
-                        </div>
-                        
-                        <div class="flex gap-3">
-                            <button id="hero-continue-btn" class="px-6 py-2.5 bg-ink-900 dark:bg-white text-white dark:text-black font-bold rounded-lg hover:shadow-lg hover:-translate-y-0.5 transition-all">Continue Reading</button>
                             
-                            <button id="hero-bookmark-btn" class="hero-btn px-4 py-2.5 rounded-lg transition-colors border-cream-300 dark:border-ink-600 cursor-pointer hover:bg-cream-100 dark:hover:bg-ink-700">
-                                <i class="ri-bookmark-line text-xl"></i>
-                            </button>
+                            <h1 id="hero-title" class="text-xl sm:text-3xl font-serif font-bold text-ink-900 dark:text-white mb-1 line-clamp-2">Loading...</h1>
+                            <p id="hero-author" class="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mb-4 line-clamp-1">Loading...</p>
+                            
+                            <div class="flex items-center gap-3 mb-5">
+                                <div class="flex-1 h-1.5 bg-cream-200 dark:bg-ink-700 rounded-full overflow-hidden">
+                                    <div id="hero-progress-bar" class="h-full bg-vermilion w-[0%] rounded-full transition-all duration-1000"></div>
+                                </div>
+                                <span id="hero-progress-text" class="text-xs font-mono text-gray-500">0%</span>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button id="hero-continue-btn" class="flex-1 py-3 bg-ink-900 dark:bg-white text-white dark:text-black font-bold text-sm rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all">Resume</button>
+                                <button id="hero-bookmark-btn" class="px-4 py-3 rounded-xl border border-cream-200 dark:border-ink-600 hover:bg-cream-100 dark:hover:bg-ink-700 transition-colors">
+                                    <i class="ri-bookmark-line text-lg"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-ink-800 rounded-2xl p-6 border border-cream-200 dark:border-ink-700 shadow-paper flex flex-col justify-between relative overflow-hidden">
-                    <div class="flex justify-between items-start z-10">
-                        <div>
-                            <h3 class="font-serif font-bold text-lg text-ink-900 dark:text-white">Daily Goal</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Keep your streak alive.</p>
-                        </div>
-                        <div id="fire-glow-container" class="cursor-pointer relative w-8 h-8 group" onclick="StreakManager.openGoalModal()" title="Set Daily Goal">
-                            <i class="ri-fire-line text-gray-300 dark:text-gray-600 text-3xl absolute bottom-0 left-0 leading-none transition-colors group-hover:text-vermilion z-20"></i>
-                            <div class="absolute bottom-0 left-0 w-full overflow-hidden transition-all duration-500 z-10" id="fire-fill" style="height: 0%">
-                                <i class="ri-fire-fill text-vermilion text-3xl absolute bottom-0 left-0 leading-none"></i>
-                            </div>
+                <div class="bg-white dark:bg-ink-800 rounded-2xl p-5 border border-cream-200 dark:border-ink-700 shadow-paper relative">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-serif font-bold text-ink-900 dark:text-white">Daily Goal</h3>
+                        <div id="fire-glow-container" class="cursor-pointer relative w-6 h-6" onclick="StreakManager.openGoalModal()">
+                            <i class="ri-fire-fill text-vermilion text-2xl"></i>
                         </div>
                     </div>
-                    <div class="flex items-end gap-2 mt-4 z-10" id="daily-read-text">
-                        <span class="text-4xl font-bold text-vermilion">0</span>
-                        <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">/ 30 mins</span>
+                    <div class="flex items-baseline gap-2 mb-3" id="daily-read-text">
+                         <span class="text-3xl font-bold text-vermilion">0</span>
+                        <span class="text-xs text-gray-400">/ 30m</span>
                     </div>
-                    <div class="mt-4 z-10">
-                         <div id="weekly-bars" class="flex justify-between gap-1 h-12 items-end mb-2"></div>
-                        <div id="weekly-labels" class="flex justify-between text-xs font-bold text-gray-400 dark:text-gray-500 px-0.5 font-mono"></div>
+                    <div class="mt-auto">
+                        <div id="weekly-bars" class="flex justify-between gap-1 h-8 items-end mb-1"></div>
+                        <div id="weekly-labels" class="flex justify-between text-[10px] font-bold text-gray-400 font-mono uppercase"></div>
                     </div>
                 </div>
             </section>
 
             <section>
-                <div class="flex justify-between items-end mb-6">
-                    <h2 class="text-xl font-serif font-bold text-ink-900 dark:text-white">For You</h2>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6" id="book-grid"></div>
+                <h2 class="text-lg font-serif font-bold text-ink-900 dark:text-white mb-4">For You</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4" id="book-grid"></div>
             </section>
         </div>
     </main>
 
     <div id="goal-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div class="bg-white dark:bg-ink-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-cream-200 dark:border-ink-700 text-center">
-            <i class="ri-fire-fill text-4xl text-vermilion mb-3"></i>
+        <div class="bg-white dark:bg-ink-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-cream-200 dark:border-ink-700 text-center relative animate-fade-in">
+             <i class="ri-fire-fill text-4xl text-vermilion mb-3"></i>
             <h3 class="font-serif font-bold text-xl text-ink-900 dark:text-white mb-2">Set Daily Goal</h3>
             <p class="text-sm text-gray-500 mb-6">How long do you want to read today?</p>
             <div class="grid grid-cols-3 gap-3 mb-6">
@@ -135,7 +130,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             initTheme(); 
-            LayoutManager.init('dashboard'); // SHOW ALL LINKS
+            LayoutManager.init('dashboard');
         });
     </script>
 </body>

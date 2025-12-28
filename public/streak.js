@@ -2,8 +2,8 @@ const StreakManager = {
     userId: null,
     state: {
         goalMinutes: 30,
-        secondsRead: 0, // Session seconds
-        totalSecondsToday: 0, // DB + Session
+        secondsRead: 0,
+        totalSecondsToday: 0,
         timerId: null,
         dailyHistory: {}
     },
@@ -12,12 +12,9 @@ const StreakManager = {
         if (!userId) return;
         this.userId = userId;
         
-        // 1. Load Initial State from Window (Populated by DB in dashboard.js/reader.js)
         if (window.appState && window.appState.user && window.appState.user.streak) {
             const s = window.appState.user.streak;
             this.state.goalMinutes = s.dailyGoalMinutes || 30;
-            
-            // Convert Map/Object to local history
             this.state.dailyHistory = s.history || {};
             
             const today = new Date().toDateString();
@@ -28,22 +25,15 @@ const StreakManager = {
         this.renderWeeklyChart();
     },
 
-    // Reading Logic: Counts session time locally, Syncs periodically
     startReading() {
         if (this.state.timerId) return;
-        
-        // Sync every 10 seconds
         this.state.timerId = setInterval(() => {
             if (document.hidden) return; 
-
-            this.state.secondsRead++; // Local session counter
-            this.state.totalSecondsToday++; // Aggregate for UI
-
+            this.state.secondsRead++; 
+            this.state.totalSecondsToday++; 
             this.updateUI(); 
-            
-            // Sync to DB every 10s
             if (this.state.secondsRead % 10 === 0) {
-                this.syncWithServer(10); // Send the chunk
+                this.syncWithServer(10); 
             }
         }, 1000);
     },
@@ -52,7 +42,6 @@ const StreakManager = {
         if(this.state.timerId) {
             clearInterval(this.state.timerId);
             this.state.timerId = null;
-            // Final Sync of remaining seconds
             const remainder = this.state.secondsRead % 10;
             if (remainder > 0) this.syncWithServer(remainder);
         }
@@ -65,14 +54,11 @@ const StreakManager = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ secondsAdd: secondsToAdd })
             });
-            // Update local history from server response to ensure sync
             const data = await res.json();
             if(data.success && data.streak) {
                 this.state.dailyHistory = data.streak.history;
             }
-        } catch (e) {
-            console.error("Streak Sync Failed", e);
-        }
+        } catch (e) { console.error("Streak Sync Failed", e); }
     },
 
     async setGoal(minutes) {
@@ -80,8 +66,6 @@ const StreakManager = {
         this.updateUI();
         this.renderWeeklyChart(); 
         this.closeGoalModal();
-        
-        // Save Goal to DB
         await fetch('/api/me/streak', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -95,7 +79,7 @@ const StreakManager = {
 
         const timerDisplay = document.getElementById('daily-read-text');
         if (timerDisplay) {
-            timerDisplay.innerHTML = `<span class="text-4xl font-bold text-vermilion">${minutesRead}</span> <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">/ ${this.state.goalMinutes} mins</span>`;
+            timerDisplay.innerHTML = `<span class="text-3xl lg:text-4xl font-bold text-vermilion">${minutesRead}</span> <span class="text-sm text-gray-500 dark:text-gray-400 mb-1">/ ${this.state.goalMinutes} mins</span>`;
         }
 
         const fireFill = document.getElementById('fire-fill');
@@ -114,7 +98,7 @@ const StreakManager = {
 
         const readerTimer = document.getElementById('timer-display');
         if (readerTimer) {
-            const min = Math.floor(this.state.secondsRead / 60); // Show session time in reader
+            const min = Math.floor(this.state.secondsRead / 60);
             const sec = this.state.secondsRead % 60;
             readerTimer.innerText = `${min}:${sec < 10 ? '0'+sec : sec}`;
         }
@@ -127,10 +111,8 @@ const StreakManager = {
 
         let barsHTML = '';
         let labelsHTML = '';
-        
         const daysLabel = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
         const today = new Date();
-        
         const currentDayIndex = (today.getDay() + 6) % 7; 
         const monday = new Date(today);
         monday.setDate(today.getDate() - currentDayIndex);
@@ -140,28 +122,32 @@ const StreakManager = {
             d.setDate(monday.getDate() + i);
             const dateStr = d.toDateString();
             
-            // Use live data if today, else history
             let seconds = this.state.dailyHistory[dateStr] || 0;
-            if (dateStr === today.toDateString()) {
-                seconds = this.state.totalSecondsToday;
-            }
+            if (dateStr === today.toDateString()) seconds = this.state.totalSecondsToday;
 
             const minutes = Math.floor(seconds / 60);
-            
             let heightPercent = Math.min(100, (minutes / this.state.goalMinutes) * 100);
             if (heightPercent < 6) heightPercent = 6;
 
             const isToday = (d.toDateString() === today.toDateString());
             const isFuture = (d > today);
             
-            let opacity = '0.3'; 
-            if (isToday) opacity = '1'; 
-            if (isFuture) opacity = '0.1';
-
-            barsHTML += `<div class="w-full bg-vermilion rounded-t-sm transition-all duration-500" style="height: ${heightPercent}%; opacity: ${opacity}" title="${minutes}m"></div>`;
-            labelsHTML += `<span>${daysLabel[d.getDay()]}</span>`;
+            let baseOpacity = isToday ? '1' : (isFuture ? '0.1' : '0.3');
+            
+            barsHTML += `
+                <div class="relative group flex-1 flex items-end justify-center h-full cursor-pointer">
+                    <div class="w-[40%] bg-vermilion rounded-t-sm transition-all duration-300 ${!isFuture ? 'group-hover:opacity-100 group-hover:scale-110' : ''}" 
+                         style="height: ${heightPercent}%; opacity: ${baseOpacity}">
+                    </div>
+                    
+                    <div class="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black dark:bg-white text-white dark:text-black text-[10px] font-bold py-1 px-2 rounded pointer-events-none whitespace-nowrap z-20 shadow-lg">
+                        ${minutes} min
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black dark:border-t-white"></div>
+                    </div>
+                </div>
+            `;
+            labelsHTML += `<span class="flex-1 text-center">${daysLabel[d.getDay()]}</span>`;
         }
-
         barContainer.innerHTML = barsHTML;
         labelContainer.innerHTML = labelsHTML;
     },

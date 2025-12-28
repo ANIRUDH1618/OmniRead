@@ -42,17 +42,32 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // --- 2. VOICE & UX HELPERS ---
+  // --- 2. VOICE & UX HELPERS (UPDATED FOR MOBILE) ---
+  const statusVoiceMobile = document.getElementById("status-voice-mobile"); // NEW
+
+  function updateVoice(text, className, mobileText = null) {
+      // Desktop
+      if(statusVoice) {
+          statusVoice.innerText = text;
+          statusVoice.className = className;
+      }
+      // Mobile
+      if(statusVoiceMobile) {
+          statusVoiceMobile.innerText = mobileText || text;
+          if (className.includes('text-drama')) statusVoiceMobile.className = "text-xs text-red-500 font-bold font-serif italic mb-4 animate-pulse";
+          else if (className.includes('text-appraisal')) statusVoiceMobile.className = "text-xs text-green-500 font-bold font-serif mb-4";
+          else statusVoiceMobile.className = "text-xs text-gray-400 font-serif italic mb-4";
+      }
+  }
+
   function setVoiceError(text) {
     isErrorState = true;
-    statusVoice.innerText = text;
-    statusVoice.className = "text-drama text-lg leading-relaxed min-h-[80px]";
+    updateVoice(text, "text-drama text-lg leading-relaxed min-h-[80px]", "⚠️ " + text);
   }
 
   function setVoiceAppraisal() {
-    if (!isErrorState) return; // Only praise if they were fixing an error
-    statusVoice.innerText = TEXT_APPRAISAL;
-    statusVoice.className =
-      "text-appraisal text-lg leading-relaxed min-h-[80px]";
+    if (!isErrorState) return;
+    updateVoice(TEXT_APPRAISAL, "text-appraisal text-lg leading-relaxed min-h-[80px]", "✅ " + TEXT_APPRAISAL);
 
     if (appraisalTimeout) clearTimeout(appraisalTimeout);
     appraisalTimeout = setTimeout(() => {
@@ -62,8 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function resetVoice() {
     isErrorState = false;
-    statusVoice.innerText = TEXT_DEFAULT;
-    statusVoice.className = "text-default text-lg leading-relaxed min-h-[80px]";
+    updateVoice(TEXT_DEFAULT, "text-default text-lg leading-relaxed min-h-[80px]", "");
   }
 
   function triggerInputError(inputElement) {

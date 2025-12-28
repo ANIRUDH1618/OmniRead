@@ -72,23 +72,44 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- 3. THE OMNI VOICE LOGIC (UNTOUCHED) ---
+    // --- 3. THE OMNI VOICE LOGIC (UPDATED FOR MOBILE) ---
+    const omniVoiceMobile = document.getElementById('omni-voice-mobile'); // NEW
+
+    function updateVoice(text, className, mobileText = null) {
+        // Desktop Update
+        if(omniVoice) {
+            omniVoice.innerHTML = text;
+            omniVoice.className = className;
+        }
+        // Mobile Update (Simplified text to save space)
+        if(omniVoiceMobile) {
+            omniVoiceMobile.innerHTML = mobileText || text; // Use simplified if provided
+            // Map desktop classes to mobile simplified classes
+            if (className.includes('text-drama')) omniVoiceMobile.className = "text-xs text-red-500 font-bold font-serif italic mb-4 animate-pulse";
+            else if (className.includes('text-appraisal')) omniVoiceMobile.className = "text-xs text-green-500 font-bold font-serif mb-4";
+            else omniVoiceMobile.className = "text-xs text-gray-400 font-serif italic mb-4";
+        }
+    }
+
     function setVoiceWarning(customText) {
         isErrorState = true;
-        omniVoice.innerText = customText || TEXT_WARNING;
-        omniVoice.className = "text-drama text-lg leading-relaxed min-h-[80px]";
+        updateVoice(
+            customText || TEXT_WARNING, 
+            "text-drama text-lg leading-relaxed min-h-[80px]",
+            customText || "⚠️ " + TEXT_WARNING
+        );
     }
 
     function setVoiceStranger() {
         isErrorState = true;
-        omniVoice.innerHTML = `${TEXT_STRANGER} <br/><span class="text-appraisal text-base mt-2 block">Why not become a part of us?</span>`;
-        omniVoice.className = "text-drama text-lg leading-relaxed min-h-[80px]";
+        const desktopHTML = `${TEXT_STRANGER} <br/><span class="text-appraisal text-base mt-2 block">Why not become a part of us?</span>`;
+        updateVoice(desktopHTML, "text-drama text-lg leading-relaxed min-h-[80px]", "⚠️ " + TEXT_STRANGER);
         addGlowEffect();
     }
 
     function setVoiceAppraisal() {
         if (!isErrorState) return;
-        omniVoice.innerText = TEXT_APPRAISAL;
-        omniVoice.className = "text-appraisal text-lg leading-relaxed min-h-[80px]";
+        updateVoice(TEXT_APPRAISAL, "text-appraisal text-lg leading-relaxed min-h-[80px]", "✅ " + TEXT_APPRAISAL);
         removeGlowEffect();
 
         if (appraisalTimeout) clearTimeout(appraisalTimeout);
@@ -99,8 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function resetVoice() {
         isErrorState = false;
-        omniVoice.innerText = TEXT_DEFAULT;
-        omniVoice.className = "text-default text-lg leading-relaxed min-h-[80px]";
+        updateVoice(TEXT_DEFAULT, "text-default text-lg leading-relaxed min-h-[80px]", "");
     }
 
     // --- GLOW EFFECT LOGIC (UNTOUCHED) ---
