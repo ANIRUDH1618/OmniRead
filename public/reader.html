@@ -5,62 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>OmniRead | Reader</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
-
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Libre Baskerville', 'serif'] },
-                    colors: {
-                        cream: { 50: '#fdfbf7', 100: '#f5f2eb', 200: '#e6e2d6', 900: '#1c1917' },
-                        ink: { 900: '#0F0F10', 800: '#18181B', 700: '#27272A' },
-                        vermilion: '#ea580c'
-                    }
-                }
-            }
-        }
+        tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Libre Baskerville', 'serif'] }, colors: { cream: { 50: '#fdfbf7', 100: '#f5f2eb', 200: '#e6e2d6', 900: '#1c1917' }, ink: { 900: '#0F0F10', 800: '#18181B', 700: '#27272A' }, vermilion: '#ea580c' } } } }
     </script>
     <style>
         .reader-scroll::-webkit-scrollbar { width: 6px; }
         .reader-scroll::-webkit-scrollbar-track { background: transparent; }
         .reader-scroll::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.2); border-radius: 4px; }
         .dark .reader-scroll::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.2); }
-
-        /* Continuous Page Styling */
-        .pdf-page {
-            position: relative;
-            margin-bottom: 8px; /* Tighter gap for mobile */
-            background-color: white;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-            min-height: 200px;
-        }
-        
-        #reader-scroll-container { scroll-behavior: auto; /* IMPORTANT: Manual smooth scroll control */ }
-        
-        /* Floating Controls */
-        .zoom-controls {
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            transition: transform 0.3s ease, opacity 0.3s ease;
-        }
-
+        .pdf-page { position: relative; margin-bottom: 8px; background-color: white; box-shadow: 0 1px 4px rgba(0,0,0,0.1); min-height: 200px; }
+        #reader-scroll-container { scroll-behavior: auto; }
+        .zoom-controls { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: transform 0.3s ease, opacity 0.3s ease; }
         /* MOBILE OPTIMIZATIONS */
         @media (max-width: 768px) {
-            .zoom-controls { display: none !important; } /* Hide Zoom on Mobile */
-            #pdf-wrapper { padding: 10px 0 !important; } /* Full width text */
+            /* [FIX] Zoom controls now visible on mobile */
+            #pdf-wrapper { padding: 10px 0 !important; }
             .pdf-page { margin-bottom: 4px; box-shadow: none; border-bottom: 1px solid #eee; }
-            aside { width: 0; padding: 0; overflow: hidden; border: none; } /* Hide sidebar completely on reading mode mobile */
-            /* Show a tiny back button overlay instead */
+            aside { width: 0; padding: 0; overflow: hidden; border: none; }
             #mobile-back-btn { display: flex; }
         }
     </style>
@@ -68,14 +34,14 @@
 <body class="bg-cream-50 dark:bg-ink-900 text-cream-900 dark:text-gray-200 font-sans h-screen w-screen overflow-hidden">
 
     <div id="view-book-home" class="w-full h-full flex flex-col overflow-y-auto reader-scroll">
-        
         <header class="h-16 flex items-center justify-between px-6 lg:px-8 border-b border-cream-200 dark:border-ink-700 bg-cream-50/90 dark:bg-ink-900/90 backdrop-blur-md sticky top-0 z-40 shrink-0">
             <button onclick="window.location.href='/dashboard'" class="flex items-center gap-2 text-gray-500 hover:text-vermilion transition-colors">
                 <i class="ri-arrow-left-line text-xl"></i> <span class="text-sm font-medium">Archives</span>
             </button>
-            <h2 class="font-serif text-lg font-bold text-ink-900 dark:text-white">Library</h2>
+            <button onclick="toggleBookDrawer(null)" class="flex items-center gap-2 text-ink-900 dark:text-white hover:text-vermilion transition-colors font-bold text-sm">
+                <i class="ri-chat-1-line text-lg"></i> Reviews
+            </button>
         </header>
-
         <div class="p-6 lg:p-12 max-w-6xl mx-auto w-full">
             <div class="flex flex-col md:flex-row gap-8 items-start mb-16">
                 <img id="home-book-cover" src="" class="w-32 md:w-56 h-auto object-cover rounded-lg shadow-2xl border-4 border-white dark:border-ink-800 shrink-0 mx-auto md:mx-0">
@@ -85,7 +51,6 @@
                     </div>
                     <h1 id="home-book-title" class="text-3xl md:text-5xl font-serif font-bold text-ink-900 dark:text-white mb-2 leading-tight">Loading...</h1>
                     <p id="home-book-author" class="text-lg text-gray-500 font-medium mb-8">Loading...</p>
-                    
                     <div class="flex items-center justify-center md:justify-start gap-4">
                         <button onclick="resumeReading()" class="px-8 py-3 bg-ink-900 dark:bg-white text-white dark:text-black font-bold rounded-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-3">
                             <i class="ri-book-open-line"></i> Resume Reading
@@ -96,7 +61,6 @@
                     </div>
                 </div>
             </div>
-
             <div>
                 <div class="flex items-end justify-between mb-6 border-b border-gray-200 dark:border-ink-700 pb-2">
                     <h2 class="text-xl font-bold font-serif">Table of Contents</h2>
@@ -107,16 +71,17 @@
         </div>
     </div>
 
-
     <div id="view-reading" class="hidden w-full h-full flex flex-row relative bg-[#fcfaf5] dark:bg-[#1a1a1a]">
-        
         <button id="mobile-back-btn" onclick="handleHeaderNav()" class="hidden absolute top-4 left-4 z-50 p-2 rounded-full bg-white/80 dark:bg-black/50 shadow-lg backdrop-blur text-gray-600 dark:text-gray-300">
             <i class="ri-arrow-left-line text-xl"></i>
         </button>
-
         <aside class="hidden md:flex w-20 bg-white dark:bg-ink-800 border-r border-cream-200 dark:border-ink-700 flex-col items-center py-6 z-50 shrink-0 shadow-xl">
             <button onclick="handleHeaderNav()" class="p-3 mb-8 rounded-xl bg-cream-50 dark:bg-ink-700 text-gray-500 hover:text-vermilion hover:bg-cream-100 dark:hover:bg-ink-600 transition-all shadow-sm" title="Back">
                 <i class="ri-arrow-left-line text-2xl"></i>
+            </button>
+            <button onclick="toggleBookDrawer()" class="p-3 mb-4 rounded-xl text-gray-500 hover:text-vermilion hover:bg-cream-100 dark:hover:bg-ink-600 transition-all shadow-sm group relative" title="Discuss Chapter">
+                <i class="ri-chat-1-line text-2xl"></i>
+                <span class="absolute left-full ml-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Discuss Chapter</span>
             </button>
             <div class="mt-auto flex flex-col items-center gap-1">
                  <span id="sidebar-percent" class="text-[10px] font-bold text-vermilion">0%</span>
@@ -125,17 +90,14 @@
                  </div>
             </div>
         </aside>
-
         <div class="flex-1 relative flex flex-col h-full overflow-hidden">
-            
             <div class="h-1 w-full bg-gray-200 dark:bg-ink-700 shrink-0">
                 <div id="reader-top-progress" class="h-full bg-vermilion transition-all duration-75 ease-out" style="width: 0%"></div>
             </div>
-
             <div class="flex-1 overflow-y-auto reader-scroll relative w-full" id="reader-scroll-container">
                 <div id="pdf-wrapper" class="flex flex-col items-center py-10 px-4 min-h-full"></div>
-                <div class="h-32"></div> </div>
-            
+                <div class="h-32"></div> 
+            </div>
             <div class="zoom-controls absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 p-1.5 rounded-full bg-white/90 dark:bg-ink-800/90 shadow-2xl border border-gray-200 dark:border-ink-600 z-50">
                 <button onclick="changeZoom(-0.1)" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-cream-100 dark:hover:bg-ink-700 text-gray-600 dark:text-gray-300 transition-colors">
                     <i class="ri-subtract-line text-lg"></i>
@@ -148,9 +110,24 @@
                 <button onclick="resetZoom()" class="px-4 h-9 rounded-full bg-ink-900 dark:bg-white text-white dark:text-black text-xs font-bold hover:opacity-90 transition-opacity">Fit Width</button>
             </div>
 
+            <div id="book-comment-drawer" class="absolute top-0 right-0 h-full w-full md:w-96 bg-white dark:bg-ink-800 shadow-2xl transform translate-x-full transition-transform duration-300 z-[60] border-l border-cream-200 dark:border-ink-700 flex flex-col">
+                <div class="p-4 border-b border-cream-200 dark:border-ink-700 flex justify-between items-center bg-cream-50/50 dark:bg-ink-900/50 backdrop-blur">
+                    <h3 class="font-bold text-lg text-ink-900 dark:text-white flex items-center gap-2">
+                        <i class="ri-chat-1-line text-vermilion"></i> 
+                        <span id="drawer-title">Book Discourse</span>
+                    </h3>
+                    <button onclick="toggleBookDrawer()" class="p-2 hover:bg-cream-100 dark:hover:bg-ink-700 rounded-full transition-colors"><i class="ri-close-line text-xl"></i></button>
+                </div>
+                <div id="book-comments-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-cream-50 dark:bg-ink-900"></div>
+                <div class="p-4 border-t border-cream-200 dark:border-ink-700 bg-white dark:bg-ink-800">
+                    <div class="relative">
+                        <textarea id="book-drawer-input" rows="1" placeholder="Leave a thought..." class="w-full bg-cream-100 dark:bg-ink-900 border-none rounded-2xl py-3 pl-4 pr-12 resize-none text-sm focus:ring-1 focus:ring-vermilion outline-none no-scrollbar text-ink-900 dark:text-white" style="min-height: 48px; max-height: 150px;"></textarea>
+                        <button id="book-drawer-submit" class="absolute right-2 bottom-4 text-vermilion p-2 hover:bg-cream-200 dark:hover:bg-ink-700 rounded-full transition-colors"><i class="ri-send-plane-2-fill text-xl"></i></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    
     <script src="streak.js"></script>
     <script src="reader.js"></script>
 </body>

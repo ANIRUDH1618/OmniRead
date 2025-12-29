@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <title>OmniRead | The Symposium</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: { sans: ["Inter", "sans-serif"], serif: ["Libre Baskerville", "serif"] },
+            colors: {
+              cream: { 50: "#fdfbf7", 100: "#f5f2eb", 200: "#e6e2d6" },
+              ink: { 900: "#0F0F10", 800: "#18181B", 700: "#27272A", 600: "#3f3f46" },
+              vermilion: "#ea580c",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .image-grid-1 { grid-template-columns: 1fr; }
+        .image-grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .image-grid-3, .image-grid-4, .image-grid-5 { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 200px); }
+        .image-grid-3 > :first-child { grid-row: span 2; }
+        
+        #comment-drawer { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .drawer-open { transform: translateX(0) !important; }
+        .drawer-closed { transform: translateX(100%); }
+
+        .modal-enter { animation: modalUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes modalUp { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body class="bg-cream-50 dark:bg-ink-900 text-ink-900 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-vermilion selection:text-white transition-colors duration-300">
+
+    <div id="app-sidebar" class="h-full z-50"></div>
+
+    <div class="flex-1 flex flex-col overflow-hidden relative">
+         <div id="app-header" class="z-40"></div>
+
+        <main id="main-scroll-container" class="flex-1 overflow-y-auto p-4 lg:p-0 no-scrollbar relative">
+             <div class="max-w-3xl mx-auto pt-8 pb-32 space-y-6" id="symposium-feed">
+                 <div class="text-center py-20"><i class="ri-loader-4-line animate-spin text-3xl text-vermilion"></i></div>
+             </div>
+        </main>
+        
+        <button onclick="toggleCreateModal()" class="fixed bottom-24 lg:bottom-8 right-6 lg:right-8 z-30 w-14 h-14 bg-vermilion text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center group">
+            <i class="ri-quill-pen-fill text-2xl group-hover:rotate-12 transition-transform"></i>
+        </button>
+    </div>
+
+    <div id="create-modal" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-ink-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative modal-enter border border-cream-200 dark:border-ink-700">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-serif font-bold text-xl text-ink-900 dark:text-white">Inscribe a Thought</h3>
+                <button onclick="toggleCreateModal()" class="text-gray-400 hover:text-ink-900 dark:hover:text-white"><i class="ri-close-line text-2xl"></i></button>
+            </div>
+            
+            <div class="flex gap-4 mb-4">
+                <img id="curr-user-avatar" src="" class="w-12 h-12 rounded-full object-cover border border-cream-200 dark:border-ink-600">
+                <textarea id="post-content" rows="4" placeholder="Share your scholarly thoughts..." class="flex-1 bg-cream-50 dark:bg-ink-900 border-none rounded-xl p-4 resize-none text-ink-900 dark:text-white placeholder-gray-400 text-lg font-serif outline-none focus:ring-1 focus:ring-vermilion no-scrollbar"></textarea>
+            </div>
+            
+            <div id="image-preview-container" class="grid grid-cols-5 gap-2 mb-4 empty:hidden"></div>
+
+            <div class="flex justify-between items-center pt-4 border-t border-cream-100 dark:border-ink-700">
+                <div class="flex gap-2">
+                    <input type="file" id="post-images" accept="image/*" multiple class="hidden">
+                    <button onclick="document.getElementById('post-images').click()" class="text-gray-500 hover:text-vermilion transition-colors p-2 rounded-full hover:bg-cream-100 dark:hover:bg-ink-700 flex items-center gap-2">
+                        <i class="ri-image-add-line text-xl"></i>
+                    </button>
+                </div>
+                <button id="submit-post-btn" class="px-6 py-2 bg-ink-900 dark:bg-white text-white dark:text-black font-bold text-sm rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50">Publish</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="comment-drawer" class="fixed top-0 right-0 h-full w-full md:w-[450px] bg-white dark:bg-ink-800 z-[70] shadow-2xl transform translate-x-full border-l border-cream-200 dark:border-ink-700 flex flex-col">
+        <div class="p-4 border-b border-cream-200 dark:border-ink-700 flex justify-between items-center bg-cream-50/50 dark:bg-ink-900/50 backdrop-blur">
+            <h3 class="font-bold text-lg text-ink-900 dark:text-white flex items-center gap-2">
+                <i class="ri-chat-1-line text-vermilion"></i> Discourse
+            </h3>
+            <button onclick="closeDrawer()" class="p-2 hover:bg-cream-100 dark:hover:bg-ink-700 rounded-full transition-colors"><i class="ri-close-line text-xl"></i></button>
+        </div>
+        <div id="drawer-comments-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-cream-50 dark:bg-ink-900"></div>
+        <div class="p-4 border-t border-cream-200 dark:border-ink-700 bg-white dark:bg-ink-800">
+            <div class="relative">
+                <textarea id="drawer-input" rows="1" placeholder="Add to the discourse..." class="w-full bg-cream-100 dark:bg-ink-900 border-none rounded-2xl py-3 pl-4 pr-12 resize-none text-sm focus:ring-1 focus:ring-vermilion outline-none no-scrollbar text-ink-900 dark:text-white" style="min-height: 48px; max-height: 150px;"></textarea>
+                <button id="drawer-submit" class="absolute right-2 bottom-2 text-vermilion p-2 hover:bg-cream-200 dark:hover:bg-ink-700 rounded-full transition-colors"><i class="ri-send-plane-2-fill text-xl"></i></button>
+            </div>
+        </div>
+    </div>
+    <div id="drawer-overlay" onclick="closeDrawer()" class="fixed inset-0 z-[65] bg-black/20 backdrop-blur-[2px] hidden transition-opacity"></div>
+
+    <div id="delete-modal" class="fixed inset-0 z-[80] hidden flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-ink-800 rounded-2xl shadow-2xl w-full max-w-sm border border-red-500/30 p-8 text-center relative modal-enter">
+            <i class="ri-delete-bin-2-fill text-5xl text-red-500 mb-4 inline-block"></i>
+            <h3 class="font-serif font-bold text-2xl text-ink-900 dark:text-white mb-2">Retract Contribution?</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
+                Are you certain? This thought will be scrubbed from the archives forever.
+            </p>
+            <div class="flex gap-4 justify-center">
+                <button onclick="closeDeleteModal()" class="px-6 py-2.5 rounded-lg border border-gray-300 dark:border-ink-600 font-bold text-sm hover:bg-gray-100 dark:hover:bg-ink-700 transition-colors dark:text-white">
+                    Keep It
+                </button>
+                <button onclick="confirmDelete()" class="px-6 py-2.5 rounded-lg bg-red-600 text-white font-bold text-sm hover:bg-red-700 shadow-lg hover:shadow-red-500/30 transition-all">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="image-lightbox" class="fixed inset-0 z-[90] bg-black/95 hidden flex flex-col justify-center items-center">
+        <button onclick="closeLightbox()" class="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-[91]">
+            <i class="ri-close-line text-3xl"></i>
+        </button>
+        
+        <div class="relative w-full h-full flex items-center justify-center p-4">
+            <img id="lightbox-img" src="" class="max-w-full max-h-full object-contain rounded-sm shadow-2xl transition-transform duration-300">
+            
+            <button onclick="prevImage(event)" id="lb-prev" class="absolute left-2 lg:left-8 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden">
+                <i class="ri-arrow-left-s-line text-4xl"></i>
+            </button>
+            <button onclick="nextImage(event)" id="lb-next" class="absolute right-2 lg:right-8 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden">
+                <i class="ri-arrow-right-s-line text-4xl"></i>
+            </button>
+        </div>
+        
+        <div id="lightbox-counter" class="absolute bottom-6 text-white/50 text-sm font-mono tracking-widest">1 / 1</div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+    <script src="shared.js"></script>
+    <script src="layout.js"></script>
+    <script src="community.js"></script> 
+</body>
+</html>

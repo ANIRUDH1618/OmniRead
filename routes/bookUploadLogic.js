@@ -3,11 +3,13 @@ import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import https from "https";
+import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Book from "../models/Book.js";
 import Chapter from "../models/Chapter.js";
 import Progress from "../models/Progress.js";
-import jwt from "jsonwebtoken";
+import Comment from "../models/Comment.js"; // [FIX] Added
+import Notification from "../models/Notification.js"; // [FIX] Added
 
 const router = express.Router();
 
@@ -18,30 +20,15 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Smart Storage: Correctly handles PDFs (raw/image) and Covers (image)
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
-        // Generate a unique public ID
         const publicId = `${file.fieldname}_${Date.now()}`;
-        
-        // Check if file is PDF
         const isPdf = file.mimetype === 'application/pdf';
-
         return {
             folder: "omniread-books",
-            
-            // [THE FIX] 
-            // If it is a PDF, we force 'raw'. This matches your working URL: '.../raw/upload/...'
-            // If it is an Image (cover), we use 'auto' (which resolves to 'image').
             resource_type: isPdf ? 'raw' : 'auto', 
-            
             public_id: publicId,
-            
-            // [IMPORTANT] Do NOT force format: 'pdf'. 
-            // Forcing format pushes it to the '/image/' route which causes the 401 error.
-            // We leave this undefined for Raw files.
-            
             use_filename: true,
             unique_filename: false
         };
@@ -267,6 +254,118 @@ router.post("/:id/chapters", protect, upload.single('chapterFile'), async (req, 
 router.delete("/:bookId/chapters/:chapterId", protect, async (req, res) => {
     try {
         await Chapter.findByIdAndDelete(req.params.chapterId);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// --- UPDATED COMMENT ROUTES ---
+
+// GET COMMENTS (Fixed "null" crash)
+// GET COMMENTS (Fixed for General vs Chapter)
+router.get("/:bookId/comments", protect, async (req, res) => {
+    try {
+        const { chapterId } = req.query;
+        const query = { book: req.params.bookId };
+        
+        // Logic:
+        // 1. If chapterId is present AND NOT "null" string -> Filter by that Chapter.
+        // 2. If chapterId IS "null" string -> Filter where 'chapter' DOES NOT EXIST (General Comments).
+        // 3. If chapterId is undefined -> Return ALL comments (optional, but safer to be specific).
+
+        if (chapterId && chapterId !== 'null' && chapterId !== 'undefined') {
+            query.chapter = chapterId;
+        } else if (chapterId === 'null') {
+            // Explicitly fetch General Comments only
+            query.chapter = { $exists: false };
+        }
+
+        const comments = await Comment.find(query)
+                                      .sort({ createdAt: 1 })
+                                      .populate('author', 'name photo');
+        res.json({ success: true, data: comments });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// POST BOOK COMMENT or REPLY
+router.post("/:bookId/comments", protect, async (req, res) => {
+    try {
+        const { content, chapterId, parentId } = req.body;
+        if(!content) return res.status(400).json({ success: false, message: "Empty comment." });
+
+        const commentData = {
+            content,
+            author: req.user._id,
+            book: req.params.bookId
+        };
+
+        if (chapterId) commentData.chapter = chapterId;
+        if (parentId) commentData.parent = parentId; // [NEW] Link reply
+
+        const newComment = await Comment.create(commentData);
+        await newComment.populate('author', 'name photo');
+
+        // --- NOTIFICATION LOGIC ---
+        const book = await Book.findById(req.params.bookId);
+        
+        // CASE 1: IT IS A REPLY
+        if (parentId) {
+            const parentComment = await Comment.findById(parentId);
+            if (parentComment && parentComment.author.toString() !== req.user._id.toString()) {
+                await Notification.create({
+                    recipient: parentComment.author, // Notify the original commenter
+                    sender: req.user._id,
+                    type: 'reply_comment',
+                    resourceId: book._id,
+                    relatedId: chapterId || null,
+                    summary: `replied to your comment on "${book.title}"`,
+                    context: content.substring(0, 50)
+                });
+            }
+        } 
+        // CASE 2: NEW TOP-LEVEL COMMENT
+        else if (book && book.uploadedBy.toString() !== req.user._id.toString()) {
+            let summaryText = `commented on "${book.title}"`;
+            let relatedId = null;
+
+            if (chapterId) {
+                const chap = await Chapter.findById(chapterId);
+                if(chap) {
+                    summaryText = `commented on ${chap.title} of "${book.title}"`;
+                    relatedId = chap._id;
+                }
+            }
+
+            await Notification.create({
+                recipient: book.uploadedBy,
+                sender: req.user._id,
+                type: 'comment_book',
+                resourceId: book._id,
+                relatedId: relatedId,
+                summary: summaryText,
+                context: content.substring(0, 50)
+            });
+        }
+
+        res.json({ success: true, data: newComment });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// [NEW] DELETE COMMENT
+router.delete("/comments/:commentId", protect, async (req, res) => {
+    try {
+        // Allow delete if user is author of comment OR author of the book (moderation)
+        const comment = await Comment.findById(req.params.commentId).populate('book');
+        
+        if (!comment) return res.status(404).json({ success: false });
+
+        const isAuthor = comment.author.toString() === req.user._id.toString();
+        const isBookOwner = comment.book && comment.book.uploadedBy.toString() === req.user._id.toString();
+
+        if (!isAuthor && !isBookOwner) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+
+        await Comment.findByIdAndDelete(req.params.commentId);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false }); }
 });

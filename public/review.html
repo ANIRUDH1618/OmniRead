@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniRead | Reviews</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], serif: ['Libre Baskerville', 'serif'] },
+                    colors: {
+                        cream: { 50: '#fdfbf7', 100: '#f5f2eb', 200: '#e6e2d6', 900: '#1c1917' },
+                        ink: { 900: '#0F0F10', 800: '#18181B', 700: '#27272A' },
+                        vermilion: '#ea580c'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-cream-50 dark:bg-ink-900 text-ink-900 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-vermilion selection:text-white transition-colors duration-300">
+
+    <div id="app-sidebar" class="h-full z-50"></div>
+
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        
+        <div id="app-header"></div>
+
+        <div class="flex-1 overflow-y-auto p-6 lg:p-12 scroll-smooth no-scrollbar">
+            <div class="max-w-4xl mx-auto">
+                
+                <div class="flex items-center gap-6 mb-10 pb-6 border-b border-cream-200 dark:border-ink-700">
+                    <img id="review-book-cover" class="w-24 h-36 object-cover rounded shadow-md border-2 border-white dark:border-ink-700">
+                    <div>
+                        <button id="back-to-book-btn" class="text-xs font-bold text-gray-400 hover:text-vermilion uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <i class="ri-arrow-left-line"></i> Back to Reading
+                        </button>
+                        <h1 id="review-book-title" class="text-3xl font-serif font-bold text-ink-900 dark:text-white mb-1">Loading...</h1>
+                        <p id="review-book-author" class="text-sm text-gray-500">Loading...</p>
+                    </div>
+                </div>
+
+                <div class="mb-12 bg-white dark:bg-ink-800 p-6 rounded-2xl shadow-sm border border-cream-200 dark:border-ink-700">
+                    <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                        <i class="ri-quill-pen-line text-vermilion"></i> Leave a Review
+                    </h3>
+                    <div class="relative">
+                        <textarea id="main-review-input" rows="3" placeholder="Share your thoughts on this tome..." 
+                            class="w-full bg-cream-50 dark:bg-ink-900 border-none rounded-xl p-4 resize-none text-ink-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-vermilion/50 outline-none transition-all no-scrollbar"
+                            style="min-height: 80px; overflow: hidden;"></textarea>
+                        <div class="flex justify-between items-center mt-3">
+                            <span class="text-xs text-gray-400 italic">Be kind and constructive.</span>
+                            <button onclick="submitReview()" class="px-6 py-2 bg-ink-900 dark:bg-white text-white dark:text-black font-bold text-sm rounded-lg hover:shadow-lg transition-all">
+                                Post Review
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-serif font-bold text-xl text-ink-900 dark:text-white">Community Discourse</h3>
+                    <span id="review-count" class="px-3 py-1 bg-cream-200 dark:bg-ink-700 rounded-full text-xs font-bold text-gray-600 dark:text-gray-300">0 Comments</span>
+                </div>
+
+                <div id="reviews-container" class="space-y-6 pb-20">
+                    <div class="text-center py-20 text-gray-400 italic">Retrieving the archives...</div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+    <script src="shared.js"></script>
+    <script src="layout.js"></script>
+    <script src="review.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            await window.loadUser();
+            // [FIX] Initialize with 'reviews' so Library is NOT highlighted
+            LayoutManager.init('reviews'); 
+        });
+    </script>
+</body>
+</html>

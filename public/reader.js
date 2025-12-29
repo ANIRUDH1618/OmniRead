@@ -1,21 +1,55 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("OmniRead Reader: v42.0 (Scroll Sync) Loaded"); 
+    console.log("OmniRead Reader: v47.0 (Final Polish) Loaded"); 
     
     const params = new URLSearchParams(window.location.search);
     const bookId = params.get('bookId');
+    const targetChapterId = params.get('chapterId');
 
     if (!bookId) {
         window.location.href = '/dashboard';
         return;
     }
 
-    // [FIX] Attach global scroll listener immediately
     const scrollContainer = document.getElementById('reader-scroll-container');
     if (scrollContainer) {
         scrollContainer.addEventListener('scroll', handleScrollSync);
     }
 
     await loadBookData(bookId);
+    
+    // Deep Link Logic
+    if (targetChapterId && readerState.chapters) {
+        const index = readerState.chapters.findIndex(c => c._id === targetChapterId);
+        if (index !== -1) {
+            loadChapter(index);
+            setTimeout(() => {
+                toggleBookDrawer(targetChapterId);
+                const drawer = document.getElementById('book-comment-drawer');
+                if(drawer) {
+                    drawer.classList.add('ring-4', 'ring-vermilion/50', 'transition-all', 'duration-500');
+                    setTimeout(() => drawer.classList.remove('ring-4', 'ring-vermilion/50'), 1500);
+                }
+            }, 800); 
+        }
+    }
+
+    // [FIX] Input: No Scrollbar, Auto-Resize
+    const input = document.getElementById('book-drawer-input');
+    if (input) {
+        input.style.overflow = 'hidden'; // Force hide scrollbar
+        input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitBookComment();
+            }
+        });
+    }
+
+    document.getElementById('book-drawer-submit')?.addEventListener('click', submitBookComment);
 });
 
 const readerState = {
@@ -25,9 +59,10 @@ const readerState = {
     user: null,
     totalPages: 0,
     currentPage: 1, 
-    startPercent: 0, // [NEW] Track percentage instead of page
+    startPercent: 0, 
     currentScale: 1.0,
-    autoScale: true
+    autoScale: true,
+    activeDrawerChapterId: null
 };
 
 const pdfState = {
@@ -36,18 +71,13 @@ const pdfState = {
     pageObserver: null
 };
 
-// --- SCROLL SYNC LOGIC (THE FIX) ---
 let scrollTimeout;
 function handleScrollSync(e) {
     const container = e.target;
-    
-    // 1. Calculate Percentage
     const totalHeight = container.scrollHeight - container.clientHeight;
     if (totalHeight <= 0) return;
-    
     const percent = (container.scrollTop / totalHeight) * 100;
     
-    // 2. Update UI (Smooth, no jumping)
     const topBar = document.getElementById('reader-top-progress');
     const sideBar = document.getElementById('sidebar-progress-bar');
     const sideText = document.getElementById('sidebar-percent');
@@ -56,17 +86,13 @@ function handleScrollSync(e) {
     if(sideBar) sideBar.style.height = `${percent}%`;
     if(sideText) sideText.innerText = `${Math.round(percent)}%`;
 
-    // 3. Save to DB (Debounced)
     clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(() => {
-        saveProgressToServer(percent);
-    }, 1000); 
+    scrollTimeout = setTimeout(() => { saveProgressToServer(percent); }, 1000); 
 }
 
 async function saveProgressToServer(percent) {
     if(!readerState.book) return;
     try {
-        // We still send currentPage for the footer, but percentComplete is the master
         await fetch('/api/me/last-read', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -80,7 +106,6 @@ async function saveProgressToServer(percent) {
     } catch (e) { console.error("Save failed", e); }
 }
 
-// --- NAVIGATION ---
 window.handleHeaderNav = function() {
     if (typeof StreakManager !== 'undefined') StreakManager.stopReading();
     window.location.href = '/dashboard';
@@ -104,7 +129,6 @@ async function loadBookData(id) {
             readerState.book = bookData.book;
             readerState.chapters = bookData.chapters;
             
-            // [FIX] Load the Saved Percentage
             if (bookData.userProgress) {
                 readerState.currentChapterIndex = bookData.userProgress.currentChapterIndex || 0;
                 readerState.startPercent = bookData.userProgress.percentComplete || 0;
@@ -159,7 +183,6 @@ function createLongChapterCard(title, index, subtitle) {
 }
 
 // --- READER INITIALIZATION ---
-
 function loadChapter(index) {
     readerState.currentChapterIndex = index;
     document.getElementById('view-book-home').classList.add('hidden');
@@ -169,7 +192,12 @@ function loadChapter(index) {
     const wrapper = document.getElementById('pdf-wrapper');
     wrapper.innerHTML = ''; 
 
-    // Manual Text Handler
+    if (readerState.chapters && readerState.chapters[index]) {
+        readerState.activeDrawerChapterId = readerState.chapters[index]._id;
+    } else {
+        readerState.activeDrawerChapterId = null; 
+    }
+
     const isText = (type === 'manual' || type === 'manual_text');
     if (isText) {
         const content = readerState.chapters[index]?.content || "No content.";
@@ -177,7 +205,6 @@ function loadChapter(index) {
         return;
     }
 
-    // PDF Streamer
     const apiUrl = `/api/books/read/${readerState.book._id}?chapterIndex=${index}`;
     initContinuousPDF(apiUrl);
 }
@@ -189,16 +216,12 @@ function renderManualText(text) {
     textContainer.textContent = text || "No content written.";
     wrapper.appendChild(textContainer);
     document.querySelector('.zoom-controls').style.display = 'none';
-    
-    // Restore Position for text
     restoreScrollPosition();
 }
 
 async function initContinuousPDF(url) {
     const wrapper = document.getElementById('pdf-wrapper');
     wrapper.innerHTML = '<div class="text-center py-20 flex flex-col items-center"><i class="ri-loader-4-line animate-spin text-4xl text-vermilion mb-4"></i><span class="text-gray-500 text-sm font-bold uppercase tracking-widest">Deciphering Scroll...</span></div>';
-    
-    // Show Zoom Controls (Desktop Only via CSS)
     document.querySelector('.zoom-controls').style.display = 'flex';
 
     if (typeof pdfjsLib === 'undefined') {
@@ -229,7 +252,6 @@ async function initContinuousPDF(url) {
         
         wrapper.innerHTML = ''; 
 
-        // RENDER PLACEHOLDERS
         for (let i = 1; i <= pdfDoc_.numPages; i++) {
             const pageDiv = document.createElement('div');
             pageDiv.className = 'pdf-page'; 
@@ -244,19 +266,10 @@ async function initContinuousPDF(url) {
             wrapper.appendChild(pageDiv);
         }
 
-        // Auto-Scale logic (Mobile: 100%, Desktop: Fit Width)
-        if (readerState.autoScale) {
-            calculateFitWidthScale();
-        }
-
+        if (readerState.autoScale) calculateFitWidthScale();
         updateZoomIndicator();
         setupObservers();
-
-        // [FIX] Restore Position Logic
-        // We wait a tiny bit for layout to settle, then scroll to percentage
-        setTimeout(() => {
-            restoreScrollPosition();
-        }, 500);
+        setTimeout(() => { restoreScrollPosition(); }, 500);
 
     } catch (err) {
         console.error("PDF Error", err);
@@ -273,17 +286,12 @@ function restoreScrollPosition() {
     }
 }
 
-// --- RENDERING HELPERS ---
-
 window.changeZoom = function(delta) {
     readerState.autoScale = false;
     let newScale = readerState.currentScale + delta;
-    if (newScale < 0.3) newScale = 0.3;
-    if (newScale > 3.0) newScale = 3.0;
-    
+    if (newScale < 0.3) newScale = 0.3; if (newScale > 3.0) newScale = 3.0;
     readerState.currentScale = parseFloat(newScale.toFixed(2));
     updateZoomIndicator();
-    
     pdfState.pagesRendered.clear();
     setupObservers(); 
 }
@@ -305,55 +313,135 @@ async function calculateFitWidthScale() {
     if (!pdfState.pdfDoc) return;
     try {
         const page = await pdfState.pdfDoc.getPage(1);
-        // Mobile check: if screen < 768, maximize usage
         const isMobile = window.innerWidth < 768;
         const padding = isMobile ? 0 : 32;
-        
         const containerWidth = document.getElementById('pdf-wrapper').clientWidth - padding;
         const unscaledViewport = page.getViewport({ scale: 1 });
         readerState.currentScale = parseFloat((containerWidth / unscaledViewport.width).toFixed(2));
     } catch(e) {}
 }
 
-// --- PAGE OBSERVER (Only for discrete page numbers) ---
 function setupObservers() {
     if(pdfState.pageObserver) pdfState.pageObserver.disconnect();
-
     const options = { root: document.getElementById('reader-scroll-container'), rootMargin: '600px', threshold: 0.01 };
-    
     pdfState.pageObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const pageNum = parseInt(entry.target.dataset.pageNum);
                 renderPage(pageNum);
-                readerState.currentPage = pageNum; // Just for reference
+                readerState.currentPage = pageNum; 
             }
         });
     }, options);
-    
     document.querySelectorAll('.pdf-page').forEach(div => pdfState.pageObserver.observe(div));
 }
 
 function renderPage(num) {
     if (pdfState.pagesRendered.has(num)) return;
     pdfState.pagesRendered.add(num);
-    
     pdfState.pdfDoc.getPage(num).then((page) => {
         const canvas = document.getElementById(`page-${num}`);
         if(!canvas) return;
         const ctx = canvas.getContext('2d');
         const outputScale = window.devicePixelRatio || 1; 
-        
         const viewport = page.getViewport({ scale: readerState.currentScale });
-        
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
         canvas.style.width = Math.floor(viewport.width) + "px";
         canvas.style.height = Math.floor(viewport.height) + "px";
-        
         const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-
         page.render({ canvasContext: ctx, transform: transform, viewport: viewport });
     });
 }
 
+// --- BOOK DISCOURSE LOGIC ---
+// --- REDIRECT TO REVIEW PAGE ---
+window.toggleBookDrawer = (explicitChapterId) => {
+    let targetChapterId = (explicitChapterId === undefined) ? readerState.activeDrawerChapterId : explicitChapterId;
+    
+    // Construct URL
+    let url = `/review.html?bookId=${readerState.book._id}`;
+    
+    // If specific chapter context exists and is not explicitly null
+    if (targetChapterId && targetChapterId !== 'null') {
+        url += `&chapterId=${targetChapterId}`;
+    }
+    
+    window.location.href = url;
+};
+
+async function submitBookComment() {
+    const input = document.getElementById('book-drawer-input');
+    const content = input.value.trim();
+    if(!content) return;
+    
+    const isReading = !document.getElementById('view-reading').classList.contains('hidden');
+    
+    // If on home page (Reviews), force null. If reading, use active chapter.
+    const targetChapterId = isReading ? readerState.activeDrawerChapterId : null;
+
+    input.value = '';
+    input.style.height = 'auto'; // Reset resize
+
+    try {
+        const payload = { content };
+        if (targetChapterId) payload.chapterId = targetChapterId;
+
+        const res = await fetch(`/api/books/${readerState.book._id}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(data.success) {
+            const list = document.getElementById('book-comments-list');
+            if(list.innerText.includes("No inscriptions")) list.innerHTML = '';
+            list.insertAdjacentHTML('beforeend', generateBookCommentHTML(data.data));
+            list.scrollTop = list.scrollHeight;
+        }
+    } catch(e) { console.error("Comment failed", e); }
+}
+
+function generateBookCommentHTML(comment) {
+     const isAuthor = readerState.user && comment.author._id === readerState.user._id;
+     
+     return `
+        <div class="flex gap-3 text-sm animate-fade-in group" id="comment-${comment._id}">
+            <img src="${comment.author.photo}" class="w-8 h-8 rounded-full object-cover mt-1">
+            <div class="flex-1">
+                <div class="bg-cream-100 dark:bg-ink-700/50 p-3 rounded-2xl rounded-tl-none relative">
+                    <div class="flex justify-between items-baseline mb-1">
+                        <span class="font-bold text-ink-900 dark:text-white mr-2">${comment.author.name}</span>
+                        <span class="text-[10px] text-gray-500">${new Date(comment.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <p class="text-ink-900 dark:text-gray-200 font-serif leading-relaxed whitespace-pre-wrap">${comment.content}</p>
+                    
+                    ${isAuthor ? `
+                    <button onclick="deleteBookComment('${comment._id}')" class="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="ri-delete-bin-line"></i>
+                    </button>` : ''}
+                </div>
+            </div>
+        </div>
+     `;
+}
+
+// [NEW] Delete Function
+window.deleteBookComment = async (id) => {
+    if(!confirm("Expunge this comment?")) return;
+    const el = document.getElementById(`comment-${id}`);
+    if(el) el.style.opacity = '0.5';
+    
+    try {
+        const res = await fetch(`/api/books/comments/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if(data.success) {
+            el.remove();
+        } else {
+            throw new Error("Failed");
+        }
+    } catch(e) {
+        if(el) el.style.opacity = '1';
+        alert("Failed to delete.");
+    }
+};

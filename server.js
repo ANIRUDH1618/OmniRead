@@ -10,7 +10,9 @@ dotenv.config({ path: "./config.env" });
 // 2. IMPORTS
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
+import communityRoutes from './routes/community-routes.js';
 import bookUploadRoutes from "./routes/bookUploadLogic.js";
+import notificationRoutes from "./routes/notification.js";
 
 // 3. INIT & DB
 connectDB();
@@ -38,6 +40,8 @@ const protectView = (req, res, next) => {
 // --- 6. ROUTES ---
 app.use("/api", authRoutes);
 app.use("/api/books", bookUploadRoutes);
+app.use('/api/community', communityRoutes);
+app.use('/api/notifications', notificationRoutes); // [NEW]
 
 // B. PUBLIC PAGES
 app.get("/login", (req, res) =>
@@ -59,6 +63,9 @@ app.get("/library", protectView, (req, res) =>
 );
 app.get("/bookshelf", protectView, (req, res) =>
   res.sendFile(path.join(__dirname, "public", "bookshelf.html"))
+);
+app.get("/community", protectView, (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "community.html"))
 );
 app.get("/reader.html", protectView, (req, res) =>
   res.sendFile(path.join(__dirname, "public", "reader.html"))
