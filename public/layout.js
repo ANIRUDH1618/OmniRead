@@ -4,6 +4,8 @@ const LayoutManager = {
         this.injectGlobalStyles(); 
         this.renderNavigation(activePage); 
         this.renderHeader(activePage);
+        this.enableZoom(); // [FIX] Allow pinch-to-zoom
+        this.initPullToRefresh(); // [FIX] Add pull-to-refresh
         
         if(window.appState && window.appState.user) {
             this.updateUser(window.appState.user);
@@ -19,16 +21,101 @@ const LayoutManager = {
         document.head.appendChild(link);
     },
 
+    // [FIX] Force enable zoom by updating the viewport meta tag
+    enableZoom() {
+        const viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+        }
+    },
+
     injectGlobalStyles() {
         if (document.getElementById('mobile-scroll-fix')) return;
         const style = document.createElement('style');
         style.id = 'mobile-scroll-fix';
+        // [FIX] Massive bottom padding for mobile to clear the nav bar
         style.innerHTML = `
             @media (max-width: 1024px) {
-                main > div.overflow-y-auto { padding-bottom: 100px !important; }
+                .overflow-y-auto { padding-bottom: 150px !important; }
+                #main-scroll-container { padding-bottom: 150px !important; }
             }
+            /* PTR Spinner Animation */
+            @keyframes spin-slow { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         `;
         document.head.appendChild(style);
+    },
+
+    // [FIX] Custom Pull-to-Refresh Logic
+    initPullToRefresh() {
+        let touchStartY = 0;
+        let isPulling = false;
+        
+        // Find the main scrollable element (supports dashboard or profile)
+        const scrollContainer = document.getElementById('view-library') || document.getElementById('main-scroll-container');
+        if (!scrollContainer) return;
+
+        // Create spinner if missing (for dashboard/library pages)
+        if (!document.getElementById('ptr-spinner')) {
+            const spinner = document.createElement('div');
+            spinner.id = 'ptr-spinner';
+            spinner.innerHTML = '<i class="ri-loader-4-line text-vermilion text-2xl"></i>';
+            spinner.style.cssText = `
+                position: absolute; top: -50px; left: 50%; transform: translateX(-50%);
+                z-index: 50; transition: top 0.2s ease;
+                background: white; border-radius: 50%; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            `;
+            scrollContainer.parentElement.appendChild(spinner);
+            // Ensure container is relative so spinner positions correctly
+            if (getComputedStyle(scrollContainer.parentElement).position === 'static') {
+                scrollContainer.parentElement.style.position = 'relative';
+            }
+        }
+
+        const spinner = document.getElementById('ptr-spinner');
+
+        scrollContainer.addEventListener('touchstart', (e) => {
+            if (scrollContainer.scrollTop === 0) {
+                touchStartY = e.touches[0].clientY;
+                isPulling = true;
+            }
+        }, { passive: true });
+
+        scrollContainer.addEventListener('touchmove', (e) => {
+            if (!isPulling) return;
+            const touchY = e.touches[0].clientY;
+            const pullDistance = touchY - touchStartY;
+
+            if (pullDistance > 0 && scrollContainer.scrollTop === 0) {
+                // Visual feedback: Drag spinner down
+                if (pullDistance < 150) { // Limit drag visual
+                    spinner.style.top = `${10 + (pullDistance / 3)}px`;
+                    spinner.style.transform = `translateX(-50%) rotate(${pullDistance * 2}deg)`;
+                }
+            } else {
+                isPulling = false;
+                spinner.style.top = '-50px';
+            }
+        }, { passive: true });
+
+        scrollContainer.addEventListener('touchend', (e) => {
+            if (!isPulling) return;
+            isPulling = false;
+            
+            const touchY = e.changedTouches[0].clientY;
+            const pullDistance = touchY - touchStartY;
+
+            if (pullDistance > 100 && scrollContainer.scrollTop === 0) {
+                // Trigger Refresh
+                spinner.style.top = '50px';
+                spinner.children[0].classList.add('animate-spin');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            } else {
+                // Reset
+                spinner.style.top = '-50px';
+            }
+        });
     },
 
     renderNavigation(activePage) {
